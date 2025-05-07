@@ -6,7 +6,7 @@ from app.config import contractor_settings
 from app.utils.logging import setup_logger
 
 # Настройка логгера
-logger = setup_logger("api_endpoints")
+logger = setup_logger(__name__)
 
 # Инициализация контейнера с зависимостями
 init_container()
