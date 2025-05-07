@@ -15,6 +15,10 @@ from app.services.risk_answer_generator import RiskAnswerGeneratorService
 from app.services.error_normalization import ErrorNormalizationService
 from app.services.error_classifier import ErrorClassifierService
 from app.services.error_answer_generator import ErrorAnswerGeneratorService
+from app.pipelines.processes_pipeline import ProcessesPipeline
+from app.services.process_normalization import ProcessNormalizationService
+from app.services.process_classifier import ProcessClassifierService
+from app.services.process_answer_generator import ProcessAnswerGeneratorService
 from app.config import container
 from app.utils.logging import setup_logger
 
@@ -26,6 +30,7 @@ BUTTON_TO_PIPELINE: Dict[ButtonType, Type[Pipeline]] = {
     ButtonType.CONTRACTORS: ContractorsPipeline,
     ButtonType.RISKS: RisksPipeline,
     ButtonType.ERRORS: ErrorsPipeline,
+    ButtonType.PROCESSES: ProcessesPipeline,
 }
 
 def init_container():
@@ -51,6 +56,11 @@ def init_container():
     error_classifier_service = ErrorClassifierService(llm_client)
     error_answer_generator = ErrorAnswerGeneratorService(llm_client)
     
+    # Создаем экземпляры сервисов для бизнес-процессов
+    process_normalization_service = ProcessNormalizationService()
+    process_classifier_service = ProcessClassifierService(llm_client)
+    process_answer_generator = ProcessAnswerGeneratorService(llm_client)
+    
     # Регистрируем в контейнере
     container.register(ExcelLoader, excel_loader)
     container.register(LLMClient, llm_client)
@@ -69,6 +79,11 @@ def init_container():
     container.register(ErrorNormalizationService, error_normalization_service)
     container.register(ErrorClassifierService, error_classifier_service)
     container.register(ErrorAnswerGeneratorService, error_answer_generator)
+    
+    # сервисы для бизнес-процессов
+    container.register(ProcessNormalizationService, process_normalization_service)
+    container.register(ProcessClassifierService, process_classifier_service)
+    container.register(ProcessAnswerGeneratorService, process_answer_generator)
     
     logger.info("Контейнер с зависимостями инициализирован")
 
@@ -115,6 +130,14 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             normalization_service=container.get(ErrorNormalizationService),
             classifier_service=container.get(ErrorClassifierService),
             answer_generator=container.get(ErrorAnswerGeneratorService)
+        )
+        
+    elif pipeline_class == ProcessesPipeline:
+        return ProcessesPipeline(
+            excel_loader=container.get(ExcelLoader),
+            normalization_service=container.get(ProcessNormalizationService),
+            classifier_service=container.get(ProcessClassifierService),
+            answer_generator=container.get(ProcessAnswerGeneratorService)
         )
     
     # Если тип неизвестен, возвращаем ошибку

@@ -1,6 +1,6 @@
 import pandas as pd
 from fastapi import HTTPException
-from app.config import contractor_settings, risk_settings, error_settings
+from app.config import contractor_settings, risk_settings, error_settings, process_settings
 from app.utils.logging import setup_logger
 from app.domain.enums import ButtonType
 
@@ -26,6 +26,8 @@ class ExcelLoader:
             file_path = risk_settings.data_file_path
         elif button_type == ButtonType.ERRORS:
             file_path = error_settings.data_file_path
+        elif button_type == ButtonType.PROCESSES:
+            file_path = process_settings.data_file_path
         else:
             # По умолчанию загружаем файл подрядчиков
             file_path = contractor_settings.data_file_path

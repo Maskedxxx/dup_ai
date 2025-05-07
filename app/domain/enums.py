@@ -5,6 +5,7 @@ class ButtonType(str, Enum):
     CONTRACTORS = "contractors"
     RISKS = "risks"
     ERRORS = "errors"
+    PROCESSES = "processes"
 
 class RiskCategory(str, Enum):
     """Типы категорий рисков."""

@@ -69,6 +69,21 @@ class ErrorAnalysisSettings(BaseAppSettings):
 # Создание экземпляра настроек ошибок
 error_settings = ErrorAnalysisSettings()
 
+class ProcessAnalysisSettings(BaseAppSettings):
+    """Настройки сервиса анализа бизнес-процессов."""
+    model_config = ConfigDict(
+        env_prefix='PROCESS_',
+        extra='allow'
+    )
+    
+    # Путь к файлу с данными о бизнес-процессах
+    data_file_path: str
+    # Максимальное количество результатов
+    max_results: int
+
+# Создание экземпляра настроек процессов
+process_settings = ProcessAnalysisSettings()
+
 
 # DI контейнер (простая реализация)
 class Container:

@@ -356,3 +356,113 @@ class PromptBuilder:
             'system': system_prompt,
             'user': user_prompt
         }
+        
+        
+    @staticmethod
+    def build_process_classification_prompt(question: str, process_names: List[str]) -> Dict[str, str]:
+        """
+        Строит системный и пользовательский промпты для классификации запроса по бизнес-процессам.
+        
+        :param question: Вопрос пользователя
+        :param process_names: Список названий процессов
+        :return: Словарь с ключами 'system' и 'user' для промптов
+        """
+        # Системный промпт
+        system_prompt = f"""Ты эксперт по классификации запросов о бизнес-процессах.
+        
+        Твоя задача: определить, к какому бизнес-процессу из предоставленного списка наиболее релевантен запрос пользователя.
+        
+        Список возможных бизнес-процессов:
+        {', '.join(process_names)}
+        
+        Проанализируй запрос и выполни следующие действия:
+        1. Проведи краткое рассуждение о том, к каким бизнес-процессам может относиться запрос
+        2. Определи топ-3 наиболее релевантных бизнес-процесса и дай им оценки от 0 до 1
+        
+        Важно: выбирай только из предоставленного списка бизнес-процессов, не добавляй свои варианты.
+        """
+        
+        # Пользовательский промпт
+        example_process = process_names[0] if process_names else "Обработка заказа"
+        
+        user_prompt = f"""
+        Запрос пользователя о бизнес-процессах: "{question}"
+        
+        Определи, к какому бизнес-процессу из списка наиболее релевантен этот запрос.
+        
+        Верни ответ в структурированном формате. Например:
+        
+        ```json
+        {{
+            "reasoning": "Запрос касается работы с клиентами и обработки их заказов",
+            "top_processes": {{
+                "{example_process}": 0.9,
+                "{process_names[1] if len(process_names) > 1 else 'Обслуживание клиентов'}": 0.6,
+                "{process_names[2] if len(process_names) > 2 else 'Управление складом'}": 0.3
+            }}
+        }}
+        ```
+        """
+        
+        return {
+            'system': system_prompt,
+            'user': user_prompt
+        }
+
+    @staticmethod
+    def build_process_answer_prompt(question: str, processes: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
+        """
+        Строит системный и пользовательский промпты для генерации ответа о бизнес-процессах.
+        
+        :param question: Вопрос пользователя
+        :param processes: Список бизнес-процессов
+        :param additional_context: Дополнительный контекст
+        :return: Словарь с ключами 'system' и 'user' для промптов
+        """
+        # Системный промпт
+        system_prompt = """Ты эксперт по бизнес-процессам и BPMN.
+        
+        Твоя задача: дать информативный ответ на запрос пользователя о бизнес-процессах на основе предоставленных данных.
+        
+        Ответ должен быть:
+        1. Структурированным и информативным
+        2. Содержать ключевую информацию о бизнес-процессах
+        3. Отформатирован в виде Markdown
+        4. Включать пояснения и рекомендации при необходимости
+        
+        Не включай в ответ информацию, которой нет в предоставленных данных.
+        """
+        
+        # Форматируем данные о процессах для промпта
+        formatted_processes = ""
+        for i, process in enumerate(processes, 1):
+            formatted_processes += f"### Процесс {i}:\n"
+            formatted_processes += f"**ID**: {process.get('id', '')}\n"
+            formatted_processes += f"**Название**: {process.get('name', '')}\n"
+            
+            if process.get('description'):
+                formatted_processes += f"**Описание**: {process.get('description')}\n"
+                
+            if process.get('text_description'):
+                formatted_processes += f"**Текстовое описание**: {process.get('text_description')}\n"
+            
+            formatted_processes += "\n---\n\n"
+        
+        # Пользовательский промпт
+        user_prompt = f"""
+        Запрос пользователя: "{question}"
+        
+        {additional_context}
+        
+        Данные о бизнес-процессах:
+        
+        {formatted_processes}
+        
+        Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные о бизнес-процессах.
+        Включи в ответ анализ процессов и их описания, а также рекомендации по улучшению при необходимости.
+        """
+        
+        return {
+            'system': system_prompt,
+            'user': user_prompt
+        }
