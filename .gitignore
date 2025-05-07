@@ -36,5 +36,5 @@ Thumbs.db
 .ipynb_checkpoints
 
 # Specific project files (if any)
-*.xlsx
+
 *.csv
