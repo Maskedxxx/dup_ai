@@ -3,6 +3,7 @@ from app.domain.enums import ButtonType, RiskCategory
 from app.pipelines.base import Pipeline
 from app.pipelines.contractors_pipeline import ContractorsPipeline
 from app.pipelines.risks_pipeline import RisksPipeline
+from app.pipelines.errors_pipeline import ErrorsPipeline
 from app.adapters.excel_loader import ExcelLoader
 from app.adapters.llm_client import LLMClient
 from app.services.contractor_normalization import NormalizationService
@@ -11,6 +12,9 @@ from app.services.contractor_answer_generator import AnswerGeneratorService
 from app.services.risk_normalization import RiskNormalizationService
 from app.services.risk_classifier import RiskClassifierService
 from app.services.risk_answer_generator import RiskAnswerGeneratorService
+from app.services.error_normalization import ErrorNormalizationService
+from app.services.error_classifier import ErrorClassifierService
+from app.services.error_answer_generator import ErrorAnswerGeneratorService
 from app.config import container
 from app.utils.logging import setup_logger
 
@@ -21,6 +25,7 @@ logger = setup_logger(__name__)
 BUTTON_TO_PIPELINE: Dict[ButtonType, Type[Pipeline]] = {
     ButtonType.CONTRACTORS: ContractorsPipeline,
     ButtonType.RISKS: RisksPipeline,
+    ButtonType.ERRORS: ErrorsPipeline,
 }
 
 def init_container():
@@ -41,6 +46,11 @@ def init_container():
     risk_classifier_service = RiskClassifierService(llm_client)
     risk_answer_generator = RiskAnswerGeneratorService(llm_client)
     
+    # Создаем экземпляры сервисов для ошибок
+    error_normalization_service = ErrorNormalizationService()
+    error_classifier_service = ErrorClassifierService(llm_client)
+    error_answer_generator = ErrorAnswerGeneratorService(llm_client)
+    
     # Регистрируем в контейнере
     container.register(ExcelLoader, excel_loader)
     container.register(LLMClient, llm_client)
@@ -54,6 +64,11 @@ def init_container():
     container.register(RiskNormalizationService, risk_normalization_service)
     container.register(RiskClassifierService, risk_classifier_service)
     container.register(RiskAnswerGeneratorService, risk_answer_generator)
+    
+    # Сервисы для ошибок
+    container.register(ErrorNormalizationService, error_normalization_service)
+    container.register(ErrorClassifierService, error_classifier_service)
+    container.register(ErrorAnswerGeneratorService, error_answer_generator)
     
     logger.info("Контейнер с зависимостями инициализирован")
 
@@ -81,6 +96,7 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             classifier_service=container.get(ContractorClassifierService),
             answer_generator=container.get(AnswerGeneratorService)
         )
+        
     elif pipeline_class == RisksPipeline:
         if not risk_category:
             logger.error("Не указана категория риска для пайплайна рисков")
@@ -91,6 +107,14 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             normalization_service=container.get(RiskNormalizationService),
             classifier_service=container.get(RiskClassifierService),
             answer_generator=container.get(RiskAnswerGeneratorService)
+        )
+        
+    elif pipeline_class == ErrorsPipeline:
+        return ErrorsPipeline(
+            excel_loader=container.get(ExcelLoader),
+            normalization_service=container.get(ErrorNormalizationService),
+            classifier_service=container.get(ErrorClassifierService),
+            answer_generator=container.get(ErrorAnswerGeneratorService)
         )
     
     # Если тип неизвестен, возвращаем ошибку

@@ -54,6 +54,21 @@ class RiskAnalysisSettings(BaseAppSettings):
 # Создание экземпляра настроек рисков
 risk_settings = RiskAnalysisSettings()
 
+class ErrorAnalysisSettings(BaseAppSettings):
+    """Настройки сервиса анализа ошибок."""
+    model_config = ConfigDict(
+        env_prefix='ERROR_',
+        extra='allow'
+    )
+    
+    # Путь к файлу с данными об ошибках
+    data_file_path: str
+    # Максимальное количество результатов
+    max_results: int
+
+# Создание экземпляра настроек ошибок
+error_settings = ErrorAnalysisSettings()
+
 
 # DI контейнер (простая реализация)
 class Container:

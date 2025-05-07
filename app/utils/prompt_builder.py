@@ -147,6 +147,7 @@ class PromptBuilder:
         
         Верни ответ в структурированном формате. Например:
         
+        ```json
         {{
             "reasoning": "Запрос касается рисков при проведении испытаний новых компонентов",
             "top_projects": {{
@@ -155,6 +156,7 @@ class PromptBuilder:
                 "{project_names[2] if len(project_names) > 2 else 'Проект внедрения'}": 0.3
             }}
         }}
+        ```
         """
         
         return {
@@ -225,6 +227,129 @@ class PromptBuilder:
         
         Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные о рисках.
         Включи в ответ анализ рисков, их приоритетность и статус, а также рекомендации по управлению рисками, если возможно.
+        """
+        
+        return {
+            'system': system_prompt,
+            'user': user_prompt
+        }
+        
+        
+    @staticmethod
+    def build_error_project_classification_prompt(question: str, project_names: List[str]) -> Dict[str, str]:
+        """
+        Строит системный и пользовательский промпты для классификации запроса об ошибках по проектам.
+        
+        :param question: Вопрос пользователя
+        :param project_names: Список названий проектов
+        :return: Словарь с ключами 'system' и 'user' для промптов
+        """
+        # Системный промпт
+        system_prompt = f"""Ты эксперт по классификации запросов об ошибках в проектах.
+        
+        Твоя задача: определить, к какому проекту из предоставленного списка наиболее релевантен запрос пользователя об ошибках.
+        
+        Список возможных проектов:
+        {', '.join(project_names)}
+        
+        Проанализируй запрос и выполни следующие действия:
+        1. Проведи краткое рассуждение о том, к каким проектам может относиться запрос
+        2. Определи топ-3 наиболее релевантных проекта и дай им оценки от 0 до 1
+        
+        Важно: выбирай только из предоставленного списка проектов, не добавляй свои варианты.
+        """
+        
+        # Пользовательский промпт
+        example_project = project_names[0] if project_names else "Проект A"
+        
+        user_prompt = f"""
+        Запрос пользователя об ошибках: "{question}"
+        
+        Определи, к какому проекту из списка наиболее релевантен этот запрос.
+        
+        Верни ответ в структурированном формате. Например:
+        
+        ```json
+        {{
+            "reasoning": "Запрос касается ошибок при разработке интерфейса",
+            "top_projects": {{
+                "{example_project}": 0.9,
+                "{project_names[1] if len(project_names) > 1 else 'Проект B'}": 0.6,
+                "{project_names[2] if len(project_names) > 2 else 'Проект C'}": 0.3
+            }}
+        }}
+        ```
+        """
+        
+        return {
+            'system': system_prompt,
+            'user': user_prompt
+        }
+
+    @staticmethod
+    def build_error_answer_prompt(question: str, errors: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
+        """
+        Строит системный и пользовательский промпты для генерации ответа об ошибках.
+        
+        :param question: Вопрос пользователя
+        :param errors: Список ошибок
+        :param additional_context: Дополнительный контекст
+        :return: Словарь с ключами 'system' и 'user' для промптов
+        """
+        # Системный промпт
+        system_prompt = """Ты эксперт по анализу ошибок в проектах.
+        
+        Твоя задача: дать информативный ответ на запрос пользователя об ошибках проектов на основе предоставленных данных.
+        
+        Ответ должен быть:
+        1. Структурированным и информативным
+        2. Содержать ключевую информацию об ошибках и их причинах
+        3. Отформатирован в виде Markdown
+        4. Включать рекомендации по предотвращению подобных ошибок
+        
+        Не включай в ответ информацию, которой нет в предоставленных данных.
+        """
+        
+        # Форматируем данные об ошибках для промпта
+        formatted_errors = ""
+        for i, error in enumerate(errors, 1):
+            formatted_errors += f"### Ошибка {i}:\n"
+            formatted_errors += f"**Проект**: {error.get('project', '')}\n"
+            
+            if error.get('date'):
+                formatted_errors += f"**Дата**: {error.get('date')}\n"
+            
+            if error.get('subject'):
+                formatted_errors += f"**Предмет ошибки**: {error.get('subject')}\n"
+                
+            formatted_errors += f"**Описание**: {error.get('description', '')}\n"
+            
+            if error.get('measures'):
+                formatted_errors += f"**Предпринятые меры**: {error.get('measures')}\n"
+                
+            if error.get('reason'):
+                formatted_errors += f"**Причина**: {error.get('reason')}\n"
+                
+            if error.get('stage'):
+                formatted_errors += f"**Стадия проекта**: {error.get('stage')}\n"
+                
+            if error.get('category'):
+                formatted_errors += f"**Категория**: {error.get('category')}\n"
+            
+            formatted_errors += "\n---\n\n"
+        
+        # Пользовательский промпт
+        user_prompt = f"""
+        Запрос пользователя: "{question}"
+        
+        {additional_context}
+        
+        Данные об ошибках:
+        
+        {formatted_errors}
+        
+        Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные об ошибках.
+        Включи в ответ анализ ошибок, их причин и предпринятых мер, а также рекомендации по предотвращению подобных ошибок в будущем.
         """
         
         return {
