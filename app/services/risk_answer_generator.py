@@ -56,7 +56,7 @@ class RiskAnswerGeneratorService:
             generated_text = self.llm_client.generate_completion(
                 system_prompt=prompts['system'],
                 user_prompt=prompts['user'],
-                temperature=0.7  # Немного креативности для более человечного ответа
+                temperature=0.2  # Немного креативности для более человечного ответа
             )
             
             logger.info(f"Сгенерирован ответ о рисках длиной {len(generated_text) if generated_text else 0} символов")

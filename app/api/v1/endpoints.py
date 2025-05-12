@@ -47,6 +47,10 @@ async def ask(
         answer = pipeline.process(request.question)
     elif request.button == ButtonType.RISKS:
         answer = pipeline.process(request.question, request.risk_category)
+    elif request.button == ButtonType.ERRORS:
+        answer = pipeline.process(request.question)
+    elif request.button == ButtonType.PROCESSES:
+        answer = pipeline.process(request.question)
     else:
         logger.error(f"Неизвестный тип кнопки: {request.button}")
         return AskResponse(

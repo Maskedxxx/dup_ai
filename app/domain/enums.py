@@ -4,7 +4,8 @@ class ButtonType(str, Enum):
     """Типы кнопок в интерфейсе."""
     CONTRACTORS = "contractors"
     RISKS = "risks"
-    # Другие типы кнопок можно добавить здесь
+    ERRORS = "errors"
+    PROCESSES = "processes"
 
 class RiskCategory(str, Enum):
     """Типы категорий рисков."""
