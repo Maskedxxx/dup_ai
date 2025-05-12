@@ -1,3 +1,5 @@
+# app/api/v1/endpoints.py
+
 from fastapi import APIRouter, Depends, Query
 from app.api.v1.schemas import AskRequest, AskResponse
 from app.domain.enums import ButtonType

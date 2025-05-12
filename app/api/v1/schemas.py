@@ -1,3 +1,5 @@
+# app/api/v1/schemas.py
+
 from pydantic import BaseModel
 from typing import Optional, List, Union
 from app.domain.enums import ButtonType, RiskCategory

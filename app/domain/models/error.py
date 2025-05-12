@@ -1,3 +1,5 @@
+# app/domain/models/error.py
+
 from pydantic import BaseModel
 from typing import Optional
 

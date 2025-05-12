@@ -1,3 +1,5 @@
+# app/domain/models/contractor.py
+
 from pydantic import BaseModel
 from typing import Optional
 
