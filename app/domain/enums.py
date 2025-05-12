@@ -1,3 +1,5 @@
+# app/domain/enums.py
+
 from enum import Enum, auto
 
 class ButtonType(str, Enum):

@@ -1,3 +1,5 @@
+# app/adapters/llm_client.py
+
 from openai import OpenAI
 from typing import Dict, List, Any, Optional, Type, TypeVar
 from pydantic import BaseModel

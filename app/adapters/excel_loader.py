@@ -1,3 +1,5 @@
+# app/adapters/excel_loader.py
+
 import pandas as pd
 from fastapi import HTTPException
 from app.config import contractor_settings, risk_settings, error_settings, process_settings

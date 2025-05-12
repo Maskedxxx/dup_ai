@@ -1,3 +1,5 @@
+# app/services/process_classifier.py
+
 import pandas as pd
 from typing import Dict, List, Tuple
 from pydantic import BaseModel, Field
@@ -81,6 +83,7 @@ class ProcessClassifierService:
             
             if result and hasattr(result, 'top_processes'):
                 top_processes = result.top_processes
+                logger.info(f"Рассуждение модели: {result.reasoning}")
                 logger.info(f"Топ-3 процесса: {top_processes}")
                 
                 # Находим процесс с наивысшей оценкой

@@ -1,3 +1,5 @@
+# app/services/risk_classifier.py
+
 import pandas as pd
 from typing import Dict, List, Tuple
 from pydantic import BaseModel, Field
@@ -88,6 +90,7 @@ class RiskClassifierService:
             
             if result and hasattr(result, 'top_projects'):
                 top_projects = result.top_projects
+                logger.info(f"Рассуждение модели: {result.reasoning}")
                 logger.info(f"Топ-3 проекта: {top_projects}")
                 
                 # Находим проект с наивысшей оценкой

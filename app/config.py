@@ -1,3 +1,5 @@
+# app/config.py
+
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
 from typing import Dict, Type, Optional, Any

@@ -1,3 +1,5 @@
+# app/pipelines/base.py
+
 from abc import ABC, abstractmethod
 from app.domain.models.answer import Answer
 from app.utils.logging import setup_logger

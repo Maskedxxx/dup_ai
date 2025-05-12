@@ -1,3 +1,5 @@
+# app/pipelines/__init__.py
+
 from typing import Dict, Type
 from app.domain.enums import ButtonType, RiskCategory
 from app.pipelines.base import Pipeline
