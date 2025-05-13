@@ -3,7 +3,7 @@
 from openai import OpenAI
 from typing import Dict, List, Any, Optional, Type, TypeVar
 from pydantic import BaseModel
-from app.config import contractor_settings
+from app.config import llm_settings
 from app.utils.logging import setup_logger
 
 # Настройка логгера
@@ -17,9 +17,9 @@ class LLMClient:
     def __init__(self):
         """Инициализация клиента LLM."""
         try:
-            self.base_url = contractor_settings.ollama_base_url
-            self.api_key = contractor_settings.ollama_api_key
-            self.model_name = contractor_settings.ollama_model
+            self.base_url = llm_settings.ollama_base_url
+            self.api_key = llm_settings.ollama_api_key
+            self.model_name = llm_settings.ollama_model
             
             self.client = OpenAI(
                 base_url=self.base_url,
@@ -45,6 +45,10 @@ class LLMClient:
         :param temperature: Температура (степень креативности)
         :return: Текстовый ответ от модели
         """
+        if not self.client:
+            logger.error("LLM клиент не инициализирован")
+            return ""
+            
         try:
             completion = self.client.chat.completions.create(
                 model=self.model_name,
@@ -79,6 +83,10 @@ class LLMClient:
         :param temperature: Температура (степень креативности)
         :return: Структурированный ответ в виде модели Pydantic или None при ошибке
         """
+        if not self.client:
+            logger.error("LLM клиент не инициализирован")
+            return None
+            
         try:
             completion = self.client.beta.chat.completions.parse(
                 temperature=temperature,

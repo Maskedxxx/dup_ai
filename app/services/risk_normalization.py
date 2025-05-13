@@ -2,28 +2,26 @@
 
 import pandas as pd
 import json
+from typing import Dict
+from app.services.base_normalization import BaseNormalizationService
 from app.utils.logging import setup_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
 
-class RiskNormalizationService:
+
+class RiskNormalizationService(BaseNormalizationService):
     """
-    Сервис для нормализации и очистки данных о рисках.
+    Сервис для нормализации данных о рисках.
     """
     
-    @staticmethod
-    def clean_df(df: pd.DataFrame) -> pd.DataFrame:
+    def get_column_mapping(self) -> Dict[str, str]:
         """
-        Очищает и нормализует DataFrame с данными о рисках.
+        Возвращает маппинг колонок для данных о рисках.
         
-        :param df: Исходный DataFrame
-        :return: Нормализованный DataFrame
+        :return: Словарь соответствия старых и новых названий колонок
         """
-        logger.info(f"Начало нормализации данных о рисках. Исходное количество строк: {len(df)}")
-        
-        # Проверяем и переименовываем колонки при необходимости
-        column_mapping = {
+        return {
             '№ проекта': 'project_id',
             'Тип проекта': 'project_type',
             'Наименование проекта': 'project_name',
@@ -34,32 +32,21 @@ class RiskNormalizationService:
             'Серьезность последствий': 'severity',
             'Предлагаемые меры': 'proposed_measures'
         }
+    
+    def _additional_processing(self, df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Дополнительная обработка для извлечения текста риска из JSON.
         
-        # Переименовываем колонки, если они есть
-        df.rename(columns={k: v for k, v in column_mapping.items() if k in df.columns}, inplace=True)
-        
-        # Логируем информацию о колонках
-        logger.info(f"Колонки после переименования: {', '.join(df.columns)}")
-        
+        :param df: DataFrame после базовой нормализации
+        :return: DataFrame с добавленной колонкой risk_text
+        """
         # Экстрагируем текст риска из JSON
         if 'risk_json' in df.columns:
-            df['risk_text'] = df['risk_json'].apply(RiskNormalizationService.extract_risk_text)
+            df['risk_text'] = df['risk_json'].apply(self._extract_risk_text)
         
-        # Заполняем пустые значения и нормализуем текстовые поля
-        for col in df.columns:
-            if df[col].dtype == 'object':  # Строковые колонки
-                # Заполняем пустые значения пустой строкой
-                df[col] = df[col].fillna('')
-                # Удаляем лишние пробелы в начале и конце
-                df[col] = df[col].astype(str).str.strip()
-                # Нормализуем пробелы между словами (убираем двойные пробелы)
-                df[col] = df[col].str.replace(r'\s+', ' ', regex=True)
-        
-        logger.info(f"Данные успешно нормализованы. Конечное количество строк: {len(df)}")
         return df
     
-    @staticmethod
-    def extract_risk_text(risk_json: str) -> str:
+    def _extract_risk_text(self, risk_json: str) -> str:
         """
         Извлекает текст риска из JSON строки.
         
@@ -68,7 +55,7 @@ class RiskNormalizationService:
         """
         try:
             risk_data = json.loads(risk_json)
-            # Возвращаем значение ключа "original" (приоритет) или пустую строку если ключа нет
+            # Возвращаем значение ключа "original" или пустую строку
             return risk_data.get("original", "")
         except (json.JSONDecodeError, TypeError):
             # В случае ошибки возвращаем исходный текст

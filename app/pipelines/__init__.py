@@ -6,6 +6,7 @@ from app.pipelines.base import Pipeline
 from app.pipelines.contractors_pipeline import ContractorsPipeline
 from app.pipelines.risks_pipeline import RisksPipeline
 from app.pipelines.errors_pipeline import ErrorsPipeline
+from app.pipelines.processes_pipeline import ProcessesPipeline
 from app.adapters.excel_loader import ExcelLoader
 from app.adapters.llm_client import LLMClient
 from app.services.contractor_normalization import NormalizationService
@@ -38,60 +39,74 @@ BUTTON_TO_PIPELINE: Dict[ButtonType, Type[Pipeline]] = {
 def init_container():
     """
     Инициализирует контейнер с зависимостями.
+    Регистрирует фабрики для создания сервисов.
     """
-    # Создаем экземпляры адаптеров
-    excel_loader = ExcelLoader()
-    llm_client = LLMClient()
+    # Регистрируем фабрики для адаптеров
+    container.register_factory(ExcelLoader, lambda: ExcelLoader())
+    container.register_factory(LLMClient, lambda: LLMClient())
     
-    # Создаем экземпляры сервисов для подрядчиков
-    normalization_service = NormalizationService()
-    classifier_service = ContractorClassifierService(llm_client)
-    answer_generator = AnswerGeneratorService(llm_client)
+    # Регистрируем фабрики для сервисов подрядчиков
+    container.register_factory(
+        NormalizationService, 
+        lambda: NormalizationService()
+    )
+    container.register_factory(
+        ContractorClassifierService, 
+        lambda: ContractorClassifierService(container.get(LLMClient))
+    )
+    container.register_factory(
+        AnswerGeneratorService,
+        lambda: AnswerGeneratorService(container.get(LLMClient))
+    )
     
-    # Создаем экземпляры сервисов для рисков
-    risk_normalization_service = RiskNormalizationService()
-    risk_classifier_service = RiskClassifierService(llm_client)
-    risk_answer_generator = RiskAnswerGeneratorService(llm_client)
+    # Регистрируем фабрики для сервисов рисков
+    container.register_factory(
+        RiskNormalizationService,
+        lambda: RiskNormalizationService()
+    )
+    container.register_factory(
+        RiskClassifierService,
+        lambda: RiskClassifierService(container.get(LLMClient))
+    )
+    container.register_factory(
+        RiskAnswerGeneratorService,
+        lambda: RiskAnswerGeneratorService(container.get(LLMClient))
+    )
     
-    # Создаем экземпляры сервисов для ошибок
-    error_normalization_service = ErrorNormalizationService()
-    error_classifier_service = ErrorClassifierService(llm_client)
-    error_answer_generator = ErrorAnswerGeneratorService(llm_client)
+    # Регистрируем фабрики для сервисов ошибок
+    container.register_factory(
+        ErrorNormalizationService,
+        lambda: ErrorNormalizationService()
+    )
+    container.register_factory(
+        ErrorClassifierService,
+        lambda: ErrorClassifierService(container.get(LLMClient))
+    )
+    container.register_factory(
+        ErrorAnswerGeneratorService,
+        lambda: ErrorAnswerGeneratorService(container.get(LLMClient))
+    )
     
-    # Создаем экземпляры сервисов для бизнес-процессов
-    process_normalization_service = ProcessNormalizationService()
-    process_classifier_service = ProcessClassifierService(llm_client)
-    process_answer_generator = ProcessAnswerGeneratorService(llm_client)
-    
-    # Регистрируем в контейнере
-    container.register(ExcelLoader, excel_loader)
-    container.register(LLMClient, llm_client)
-    
-    # Сервисы для подрядчиков
-    container.register(NormalizationService, normalization_service)
-    container.register(ContractorClassifierService, classifier_service)
-    container.register(AnswerGeneratorService, answer_generator)
-    
-    # Сервисы для рисков
-    container.register(RiskNormalizationService, risk_normalization_service)
-    container.register(RiskClassifierService, risk_classifier_service)
-    container.register(RiskAnswerGeneratorService, risk_answer_generator)
-    
-    # Сервисы для ошибок
-    container.register(ErrorNormalizationService, error_normalization_service)
-    container.register(ErrorClassifierService, error_classifier_service)
-    container.register(ErrorAnswerGeneratorService, error_answer_generator)
-    
-    # сервисы для бизнес-процессов
-    container.register(ProcessNormalizationService, process_normalization_service)
-    container.register(ProcessClassifierService, process_classifier_service)
-    container.register(ProcessAnswerGeneratorService, process_answer_generator)
+    # Регистрируем фабрики для сервисов процессов
+    container.register_factory(
+        ProcessNormalizationService,
+        lambda: ProcessNormalizationService()
+    )
+    container.register_factory(
+        ProcessClassifierService,
+        lambda: ProcessClassifierService(container.get(LLMClient))
+    )
+    container.register_factory(
+        ProcessAnswerGeneratorService,
+        lambda: ProcessAnswerGeneratorService(container.get(LLMClient))
+    )
     
     logger.info("Контейнер с зависимостями инициализирован")
 
 def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) -> Pipeline:
     """
     Создает и возвращает экземпляр пайплайна соответствующего типа.
+    Использует фабричный подход для создания зависимостей.
     
     :param button_type: Тип кнопки
     :param risk_category: Категория риска (только для ButtonType.RISKS)
@@ -102,46 +117,44 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
         logger.error(f"Тип кнопки {button_type} не поддерживается")
         raise ValueError(f"Тип кнопки {button_type} не поддерживается")
     
-    # Получаем класс пайплайна
-    pipeline_class = BUTTON_TO_PIPELINE[button_type]
-    
-    # Создаем экземпляр пайплайна с зависимостями из контейнера
-    if pipeline_class == ContractorsPipeline:
-        return ContractorsPipeline(
+    # Словарь фабрик для создания пайплайнов
+    pipeline_factories = {
+        ButtonType.CONTRACTORS: lambda: ContractorsPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(NormalizationService),
             classifier_service=container.get(ContractorClassifierService),
             answer_generator=container.get(AnswerGeneratorService)
-        )
+        ),
         
-    elif pipeline_class == RisksPipeline:
-        if not risk_category:
-            logger.error("Не указана категория риска для пайплайна рисков")
-            raise ValueError("Не указана категория риска для пайплайна рисков")
-        
-        return RisksPipeline(
+        ButtonType.RISKS: lambda: RisksPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(RiskNormalizationService),
             classifier_service=container.get(RiskClassifierService),
             answer_generator=container.get(RiskAnswerGeneratorService)
-        )
+        ),
         
-    elif pipeline_class == ErrorsPipeline:
-        return ErrorsPipeline(
+        ButtonType.ERRORS: lambda: ErrorsPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ErrorNormalizationService),
             classifier_service=container.get(ErrorClassifierService),
             answer_generator=container.get(ErrorAnswerGeneratorService)
-        )
+        ),
         
-    elif pipeline_class == ProcessesPipeline:
-        return ProcessesPipeline(
+        ButtonType.PROCESSES: lambda: ProcessesPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ProcessNormalizationService),
             classifier_service=container.get(ProcessClassifierService),
             answer_generator=container.get(ProcessAnswerGeneratorService)
         )
+    }
     
-    # Если тип неизвестен, возвращаем ошибку
-    logger.error(f"Не удалось создать пайплайн для типа {button_type}")
-    raise ValueError(f"Не удалось создать пайплайн для типа {button_type}")
+    # Получаем фабрику и создаем пайплайн
+    factory = pipeline_factories.get(button_type)
+    if not factory:
+        logger.error(f"Не найдена фабрика для типа {button_type}")
+        raise ValueError(f"Не найдена фабрика для типа {button_type}")
+    
+    pipeline = factory()
+    logger.info(f"Создан пайплайн для типа {button_type}")
+    
+    return pipeline
