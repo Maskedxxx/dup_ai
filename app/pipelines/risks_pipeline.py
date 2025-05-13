@@ -1,22 +1,22 @@
 # app/pipelines/risks_pipeline.py
 
+from typing import Optional
 import pandas as pd
-from typing import List, Dict
-from app.pipelines.base import Pipeline
-from app.domain.models.answer import Answer
+from app.pipelines.base import BasePipeline
 from app.domain.models.risk import Risk
-from app.domain.enums import RiskCategory
+from app.domain.models.answer import Answer
+from app.domain.enums import ButtonType, RiskCategory
 from app.adapters.excel_loader import ExcelLoader
 from app.services.risk_normalization import RiskNormalizationService
 from app.services.risk_classifier import RiskClassifierService
 from app.services.risk_answer_generator import RiskAnswerGeneratorService
-from app.domain.enums import ButtonType
 from app.utils.logging import setup_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
 
-class RisksPipeline(Pipeline):
+
+class RisksPipeline(BasePipeline):
     """
     Пайплайн для обработки запросов о рисках проектов.
     """
@@ -29,114 +29,100 @@ class RisksPipeline(Pipeline):
         answer_generator: RiskAnswerGeneratorService
     ):
         """
-        Инициализация пайплайна.
-        
-        :param excel_loader: Адаптер для загрузки данных из Excel
-        :param normalization_service: Сервис нормализации данных о рисках
-        :param classifier_service: Сервис классификации рисков
-        :param answer_generator: Сервис генерации ответов о рисках
+        Инициализация пайплайна рисков.
         """
-        self.excel_loader = excel_loader
-        self.normalization_service = normalization_service
-        self.classifier_service = classifier_service
-        self.answer_generator = answer_generator
-        logger.info("Инициализирован пайплайн для обработки запросов о рисках")
+        super().__init__(
+            excel_loader=excel_loader,
+            normalization_service=normalization_service,
+            classifier_service=classifier_service,
+            answer_generator=answer_generator,
+            button_type=ButtonType.RISKS
+        )
+    
+    def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Risk:
+        """
+        Создает экземпляр риска из строки DataFrame.
+        
+        :param row: Строка DataFrame
+        :param relevance_score: Оценка релевантности
+        :return: Экземпляр Risk
+        """
+        return Risk(
+            project_id=str(row.get('project_id', '')),
+            project_type=row.get('project_type', ''),
+            project_name=row.get('project_name', ''),
+            risk_text=row.get('risk_text', ''),
+            risk_priority=row.get('risk_priority', ''),
+            status=row.get('status', ''),
+            relevance_score=relevance_score
+        )
+    
+    def _get_entity_name(self) -> str:
+        """
+        Возвращает название сущности.
+        
+        :return: 'рисков'
+        """
+        return "рисков"
+    
+    def _pre_process_dataframe(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        """
+        Фильтрует DataFrame по категории риска.
+        
+        :param df: Нормализованный DataFrame
+        :param kwargs: Должен содержать risk_category
+        :return: Отфильтрованный DataFrame
+        """
+        risk_category = kwargs.get('risk_category')
+        
+        if not risk_category:
+            logger.warning("Не указана категория риска")
+            return df
+        
+        logger.info(f"Фильтрация по категории: {risk_category}")
+        category_filtered_df = df[df['project_type'] == risk_category]
+        
+        if len(category_filtered_df) == 0:
+            logger.warning(f"Не найдено рисков для категории '{risk_category}'")
+        
+        return category_filtered_df
+    
+    def _load_classifier_items(self, df: pd.DataFrame):
+        """
+        Загружает названия проектов для классификации.
+        """
+        self.classifier_service.load_project_names(df)
+    
+    def _filter_data(self, df: pd.DataFrame, item_value: str):
+        """
+        Фильтрует риски по проекту.
+        """
+        return self.classifier_service.filter_risks(df, item_value)
+    
+    def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
+        """
+        Генерирует контекст для рисков.
+        """
+        risk_category = kwargs.get('risk_category', '')
+        return f"Найдено {len(filtered_df)} рисков для проекта '{best_item}' в категории '{risk_category}'."
+    
+    def _generate_answer(self, question: str, items: list, additional_context: str, **kwargs) -> Answer:
+        """
+        Переопределяем для передачи категории в генератор ответов.
+        """
+        return self.answer_generator.make_md(
+            question=question,
+            risks=items,  # Используем старое название параметра
+            category=kwargs.get('risk_category', ''),
+            additional_context=additional_context
+        )
     
     def process(self, question: str, risk_category: RiskCategory) -> Answer:
         """
-        Обрабатывает вопрос о рисках и возвращает ответ.
+        Совместимость с существующим API - принимаем risk_category как отдельный параметр.
         
         :param question: Вопрос пользователя
         :param risk_category: Категория риска
-        :return: Модель Answer с результатом обработки
+        :return: Модель Answer
         """
-        logger.info(f"Обработка вопроса о рисках: '{question}', категория: {risk_category}")
-        
-        try:
-            # 1. Загрузка данных
-            df = self.excel_loader.load(button_type=ButtonType.RISKS)
-            
-            # 2. Нормализация данных
-            cleaned_df = self.normalization_service.clean_df(df)
-            logger.info(f"Уникальные значения project_type: {cleaned_df['project_type'].unique()}")
-            
-            # 3. Фильтрация по категории риска
-            category_value = risk_category
-            logger.info(f"Фильтрация по категории: {category_value}")
-            category_filtered_df = cleaned_df[cleaned_df['project_type'] == category_value]
-            
-            if len(category_filtered_df) == 0:
-                logger.warning(f"Не найдено рисков для категории '{risk_category}'")
-                return Answer(
-                    text=f"По вашему запросу не найдено рисков в категории '{risk_category}'.",
-                    query=question,
-                    total_found=0,
-                    items=[],
-                    category=category_value
-                )
-            
-            # 4. Загрузка названий проектов
-            self.classifier_service.load_project_names(category_filtered_df)
-            
-            # 5. Классификация вопроса по проектам
-            best_project_name = self.classifier_service.classify(question)
-            
-            # 6. Фильтрация рисков по проекту
-            filtered_df, relevance_scores = self.classifier_service.filter_risks(category_filtered_df, best_project_name)
-            
-            # 7. Преобразование в модели
-            risks = self._dataframe_to_models(filtered_df, relevance_scores)
-            
-            # 8. Генерация ответа
-            additional_context = f"Найдено {len(filtered_df)} рисков для проекта '{best_project_name}' в категории '{category_value}'."
-            answer = self.answer_generator.make_md(question, risks, category_value, additional_context)
-            
-            logger.info(f"Успешно обработан вопрос о рисках, найдено {len(risks)} рисков")
-            return answer
-            
-        except Exception as e:
-            logger.error(f"Ошибка при обработке вопроса о рисках: {e}")
-            
-            # В случае ошибки возвращаем базовый ответ с информацией об ошибке
-            error_answer = Answer(
-                text=f"К сожалению, произошла ошибка при обработке вашего запроса о рисках: {str(e)}",
-                query=question,
-                total_found=0,
-                items=[],
-                category=risk_category
-            )
-            
-            return error_answer
-    
-    def _dataframe_to_models(self, df: pd.DataFrame, relevance_scores: Dict[int, float]) -> List[Risk]:
-        """
-        Преобразует DataFrame в список моделей Risk.
-        
-        :param df: DataFrame с данными о рисках
-        :param relevance_scores: Словарь с оценками релевантности {индекс: оценка}
-        :return: Список моделей Risk
-        """
-        logger.debug(f"Преобразование {len(df)} записей в модели Risk")
-        
-        risks = []
-        for idx, row in df.iterrows():
-            try:
-                risk = Risk(
-                    project_id=str(row.get('project_id', '')),
-                    project_type=row.get('project_type', ''),
-                    project_name=row.get('project_name', ''),
-                    risk_text=row.get('risk_text', ''),
-                    risk_priority=row.get('risk_priority', ''),
-                    status=row.get('status', ''),
-                    relevance_score=relevance_scores.get(idx)
-                )
-                risks.append(risk)
-            except Exception as e:
-                logger.warning(f"Ошибка преобразования записи {idx} в модель Risk: {e}")
-                
-        # Сортируем по релевантности, если она указана
-        if relevance_scores:
-            risks.sort(key=lambda x: x.relevance_score or 0, reverse=True)
-            
-        logger.debug(f"Преобразовано {len(risks)} моделей Risk")
-        return risks
+        return super().process(question, risk_category=risk_category)

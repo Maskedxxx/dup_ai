@@ -1,98 +1,183 @@
 # app/utils/prompt_builder.py
 
 from typing import List, Dict, Any
+from enum import Enum
+from app.utils.logging import setup_logger
+from app.config import app_settings
 
+# Настройка отдельного логгера для промптов
+logger = setup_logger(__name__)
+
+class ItemType(Enum):
+    """Типы элементов для промптов."""
+    PROJECT = "проект"
+    RISK = "риск"
+    ERROR = "ошибка"
+    PROCESS = "бизнес-процесс"
+    
 class PromptBuilder:
     """
     Утилита для построения промптов для LLM.
+    Обобщенные методы для всех типов данных.
     """
     
     @staticmethod
-    def build_classification_prompt(question: str, work_types: List[str]) -> Dict[str, str]:
+    def _log_prompts(method_name: str, prompts: Dict[str, str], context: Dict[str, Any] = None):
         """
-        Строит системный и пользовательский промпты для классификации запроса.
+        Логирует промпты если включен соответствующий флаг.
+        
+        :param method_name: Название метода
+        :param prompts: Словарь с промптами
+        :param context: Дополнительный контекст
+        """
+        if not app_settings.log_prompts:
+            return
+            
+        logger.info(f"=== {method_name} ===")
+        
+        if context:
+            logger.info(f"Контекст: {context}")
+        
+        logger.info("--- SYSTEM PROMPT ---")
+        logger.info(prompts.get('system', ''))
+        
+        logger.info("--- USER PROMPT ---")
+        logger.info(prompts.get('user', ''))
+        
+        logger.info(f"=== END {method_name} ===")
+    
+    @staticmethod
+    def build_classification_prompt(
+        question: str, 
+        items: List[str], 
+        item_type: str = "проект"
+    ) -> Dict[str, str]:
+        """
+        Строит универсальные промпты для классификации запроса.
         
         :param question: Вопрос пользователя
-        :param work_types: Список типов работ
+        :param items: Список элементов для классификации
+        :param item_type: Тип элементов (проект, процесс и т.д.)
         :return: Словарь с ключами 'system' и 'user' для промптов
         """
         # Системный промпт
-        system_prompt = f"""Ты эксперт по классификации запросов в участии подрядчиков в проектах.
+        system_prompt = f"""Ты эксперт по классификации запросов.
         
-        Твоя задача: определить, к какому проекту из предоставленного списка наиболее релевантен запрос пользователя.
+        Твоя задача: определить, к какому {item_type} из предоставленного списка наиболее релевантен запрос пользователя.
         
-        Список возможных проектов:
-        {', '.join(work_types)}
+        Список возможных {item_type}ов:
+        <start_enums> {', '.join(items)} <finish_enums>
         
         Проанализируй запрос и выполни следующие действия:
-        1. Проведи краткое рассуждение о том, к каким проектам может относиться запрос
-        2. Определи топ-3 наиболее релевантных проекта и дай им оценки от 0 до 1
+        1. Проведи краткое рассуждение о том, к каким {item_type}ам может относиться запрос
+        2. Определи топ-3 наиболее релевантных {item_type}а и дай им оценки от 0 до 1
         
-        Важно: выбирай только из предоставленного списка проектов, не добавляй свои варианты.
+        Важно: выбирай только из предоставленного списка {item_type}ов, не добавляй свои варианты.
         """
         
         # Пользовательский промпт
-        example_project = work_types[0] if work_types else "Бетонные конструкции"
+        example_item = items[0] if items else f"Пример {item_type}а"
         
         user_prompt = f"""
         Запрос пользователя: "{question}"
         
-        Определи, к какому проекту из списка наиболее релевантен этот запрос.
+        Задача: определи, к какому {item_type} из списка наиболее релевантен этот запрос.
         
-        Верни ответ в структурированном формате. Например:
+        Верни ответ в структурированном формате json. Например:
         
         ```json
         {{
-            "reasoning": "Запрос касается установки и подключения электрооборудования в здании",
-            "top_projects": {{
-                "{example_project}": 0.9,
-                "{work_types[1] if len(work_types) > 1 else 'Инженерные системы'}": 0.6,
-                "{work_types[2] if len(work_types) > 2 else 'Проектирование зданий'}": 0.3
+            "reasoning": "Исходя из запроса пользователя я считаю что ... <ваши рассуждения>",
+            "top_items": {{
+                "{example_item}": 0.9,
+                "{items[1] if len(items) > 1 else f'Второй {item_type}'}": 0.6,
+                "{items[2] if len(items) > 2 else f'Третий {item_type}'}": 0.3
             }}
         }}
         ```
         """
         
-        return {
+        prompts = {
             'system': system_prompt,
             'user': user_prompt
         }
+        
+        # Логируем промпты
+        PromptBuilder._log_prompts(
+            "build_classification_prompt",
+            prompts,
+            {
+                'question': question,
+                'item_type': item_type,
+                'items_count': len(items)
+            }
+        )
+        
+        return prompts
     
     @staticmethod
-    def build_answer_prompt(question: str, documents: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
+    def build_answer_prompt(
+        question: str,
+        documents: List[Dict[str, Any]],
+        entity_type: str = "подрядчик",
+        additional_context: str = ""
+    ) -> Dict[str, str]:
         """
-        Строит системный и пользовательский промпты для генерации ответа.
+        Строит универсальные промпты для генерации ответа.
         
         :param question: Вопрос пользователя
-        :param documents: Список документов с данными о подрядчиках
+        :param documents: Список документов с данными
+        :param entity_type: Тип сущности (подрядчик, риск, ошибка, процесс)
         :param additional_context: Дополнительный контекст
         :return: Словарь с ключами 'system' и 'user' для промптов
         """
-        # Системный промпт
-        system_prompt = """Ты профессиональный аналитик по подбору подрядчиков для строительных и инженерных проектов.
+        # Определяем контекст в зависимости от типа сущности
+        contexts = {
+            "подрядчик": "строительных и инженерных проектов",
+            "риск": "проектов разных типов",
+            "ошибка": "проектов",
+            "процесс": "и BPMN"
+        }
         
-        Твоя задача: дать информативный ответ на запрос пользователя о подрядчиках на основе предоставленных данных.
+        context = contexts.get(entity_type, "проектов")
+        
+        # Системный промпт
+        system_prompt = f"""Ты профессиональный аналитик по {entity_type}ам {context}.
+        
+        Твоя задача: дать информативный ответ на запрос пользователя о {entity_type}ах на основе предоставленных данных.
         
         Ответ должен быть:
         1. Структурированным и информативным
-        2. Содержать ключевую информацию о подрядчиках
+        2. Содержать ключевую информацию о {entity_type}ах
         3. Отформатирован в виде Markdown
-        4. Включать рекомендации при необходимости
+        4. Включать рекомендации и выводы при необходимости
         
         Не включай в ответ информацию, которой нет в предоставленных данных.
+        Если вы считаете что найденные документы не имеют отношение к вопросу и не содержат релевантную информацию для отета, то ответьте пользователю: "Извините, я затрудняюсь ответить на ваш вопрос, попробуйте позже"
         """
         
         # Форматируем документы для промпта
         formatted_docs = ""
         for i, doc in enumerate(documents, 1):
-            formatted_docs += f"### Подрядчик {i}:\n"
-            formatted_docs += f"{doc['content']}\n"
+            formatted_docs += f"### {entity_type.capitalize()} {i}:\n"
             
-            # Добавляем метаданные
-            if doc.get('metadata'):
-                for key, value in doc['metadata'].items():
-                    if value:
-                        formatted_docs += f"{key}: {value}\n"
+            # Добавляем основной контент, если есть
+            if isinstance(doc, dict):
+                # Для словарных данных
+                for key, value in doc.items():
+                    if value and key != 'metadata':  # Пропускаем пустые значения и метаданные
+                        formatted_key = key.replace('_', ' ').capitalize()
+                        formatted_docs += f"**{formatted_key}**: {value}\n"
+                
+                # Добавляем метаданные, если есть
+                if doc.get('metadata'):
+                    for key, value in doc['metadata'].items():
+                        if value:
+                            formatted_key = key.replace('_', ' ').capitalize()
+                            formatted_docs += f"**{formatted_key}**: {value}\n"
+            else:
+                # Для строковых данных
+                formatted_docs += str(doc) + "\n"
             
             formatted_docs += "\n---\n\n"
         
@@ -100,377 +185,82 @@ class PromptBuilder:
         user_prompt = f"""
         Запрос пользователя: "{question}"
         
-        Дополнительный контекст: {additional_context}
+        {additional_context}
         
-        Данные о подрядчиках:
+        Данные о {entity_type}ах:
         
         {formatted_docs}
         
         Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные.
         """
         
-        return {
+        # Добавляем специфичные инструкции в зависимости от типа
+        if entity_type == "риск":
+            user_prompt += "\nВключи в ответ анализ рисков, их приоритетность и статус, а также рекомендации по управлению рисками."
+        elif entity_type == "ошибка":
+            user_prompt += "\nВключи в ответ анализ ошибок, их причин и предпринятых мер, а также рекомендации по предотвращению подобных ошибок."
+        elif entity_type == "процесс":
+            user_prompt += "\nВключи в ответ анализ процессов и их описания, а также рекомендации по улучшению при необходимости."
+        
+        prompts = {
             'system': system_prompt,
             'user': user_prompt
         }
         
+        # Логируем промпты
+        PromptBuilder._log_prompts(
+            "build_answer_prompt",
+            prompts,
+            {
+                'question': question,
+                'entity_type': entity_type,
+                'documents_count': len(documents),
+                'has_additional_context': bool(additional_context)
+            }
+        )
         
+        return prompts
+    
+    # Обратная совместимость - старые методы теперь используют новые универсальные
+    
+    @staticmethod
+    def build_contractor_classification_prompt(question: str, work_types: List[str]) -> Dict[str, str]:
+        """Обратная совместимость для классификации подрядчиков."""
+        return PromptBuilder.build_classification_prompt(question, work_types, "проект")
+    
+    @staticmethod
+    def build_contractor_answer_prompt(question: str, documents: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
+        """Обратная совместимость для ответов о подрядчиках."""
+        return PromptBuilder.build_answer_prompt(question, documents, "подрядчик", additional_context)
+    
     @staticmethod
     def build_risk_project_classification_prompt(question: str, project_names: List[str]) -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для классификации запроса о рисках по проектам.
-        
-        :param question: Вопрос пользователя
-        :param project_names: Список названий проектов
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = f"""Ты эксперт по классификации запросов о рисках в проектах.
-        
-        Твоя задача: определить, к какому проекту из предоставленного списка наиболее релевантен запрос пользователя о рисках.
-        
-        Список возможных проектов:
-        {', '.join(project_names)}
-        
-        Проанализируй запрос и выполни следующие действия:
-        1. Проведи краткое рассуждение о том, к каким проектам может относиться запрос
-        2. Определи топ-3 наиболее релевантных проекта и дай им оценки от 0 до 1.
-        
-        Примечания:
-        1. Имена проектов находятся строго в синтаксисе '<имя_проекта_1>', '<имя_проекта_2>' ..."
-        2. Выбрать в топ-3 следует только по одному проекту из списка
-        3. Не изменяйте орфографию имен проектов при выборе топ проектов.
-        
-        
-        Важно: выбирай только из предоставленного списка проектов, не добавляй свои варианты.
-        """
-        
-        # Пользовательский промпт
-        example_project = "Проект разработки ПО"
-        
-        user_prompt = f"""
-        Запрос пользователя о рисках: "{question}"
-        
-        Определи, к какому проекту из списка наиболее релевантен этот запрос.
-        
-        Верни ответ в структурированном формате. Например:
-        
-        ```json
-        {{
-            "reasoning": "Запрос касается рисков при проведении испытаний новых компонентов",
-            "top_projects": {{
-                "{example_project}": 0.9,
-                "{project_names[1] if len(project_names) > 1 else 'Проект строительства'}": 0.6,
-                "{project_names[2] if len(project_names) > 2 else 'Проект внедрения'}": 0.3
-            }}
-        }}
-        ```
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
-
+        """Обратная совместимость для классификации рисков."""
+        return PromptBuilder.build_classification_prompt(question, project_names, "проект")
+    
     @staticmethod
     def build_risk_answer_prompt(question: str, risks: List[Dict[str, Any]], category: str, additional_context: str = "") -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для генерации ответа о рисках.
-        
-        :param question: Вопрос пользователя
-        :param risks: Список рисков
-        :param category: Категория риска
-        :param additional_context: Дополнительный контекст
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = """Ты эксперт по анализу рисков в проектах разных типов.
-        
-        Твоя задача: дать информативный ответ на запрос пользователя о рисках проектов на основе предоставленных данных.
-        
-        Ответ должен быть:
-        1. Структурированным и информативным
-        2. Содержать ключевую информацию о рисках и проектах
-        3. Отформатирован в виде Markdown
-        4. Включать рекомендации и выводы при необходимости
-        
-        Не включай в ответ информацию, которой нет в предоставленных данных.
-        """
-        
-        # Форматируем данные о рисках для промпта
-        formatted_risks = ""
-        for i, risk in enumerate(risks, 1):
-            formatted_risks += f"### Риск {i}:\n"
-            formatted_risks += f"**Проект**: {risk.get('project_name', '')}\n"
-            formatted_risks += f"**Описание риска**: {risk.get('risk_text', '')}\n"
-            
-            # Добавляем дополнительные поля, если они есть
-            if risk.get('risk_priority'):
-                formatted_risks += f"**Приоритет**: {risk.get('risk_priority')}\n"
-            if risk.get('status'):
-                formatted_risks += f"**Статус**: {risk.get('status')}\n"
-            
-            formatted_risks += "\n---\n\n"
-        
-        # Соответствие категорий
-        category_names = {
-            "niokr": "НИОКР (научно-исследовательские и опытно-конструкторские работы)",
-            "product_project": "Продуктовые проекты",
-            "manufacturing": "Производство"
-        }
-        
-        category_name = category_names.get(category, category)
-        
-        # Пользовательский промпт
-        user_prompt = f"""
-        Запрос пользователя: "{question}"
-        
-        Категория проектов: {category_name}
-        
-        {additional_context}
-        
-        Данные о рисках:
-        
-        {formatted_risks}
-        
-        Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные о рисках.
-        Включи в ответ анализ рисков, их приоритетность и статус, а также рекомендации по управлению рисками, если возможно.
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
-        
-        
+        """Обратная совместимость для ответов о рисках."""
+        # Добавляем категорию в контекст
+        full_context = f"Категория проектов: {category}\n\n{additional_context}" if additional_context else f"Категория проектов: {category}"
+        return PromptBuilder.build_answer_prompt(question, risks, "риск", full_context)
+    
     @staticmethod
     def build_error_project_classification_prompt(question: str, project_names: List[str]) -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для классификации запроса об ошибках по проектам.
-        
-        :param question: Вопрос пользователя
-        :param project_names: Список названий проектов
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = f"""Ты эксперт по классификации запросов об ошибках в проектах.
-        
-        Твоя задача: определить, к какому проекту из предоставленного списка наиболее релевантен запрос пользователя об ошибках.
-        
-        Список возможных проектов:
-        {', '.join(project_names)}
-        
-        Проанализируй запрос и выполни следующие действия:
-        1. Проведи краткое рассуждение о том, к каким проектам может относиться запрос
-        2. Определи топ-3 наиболее релевантных проекта и дай им оценки от 0 до 1
-        
-        Важно: выбирай только из предоставленного списка проектов, не добавляй свои варианты.
-        """
-        
-        # Пользовательский промпт
-        example_project = project_names[0] if project_names else "Проект A"
-        
-        user_prompt = f"""
-        Запрос пользователя об ошибках: "{question}"
-        
-        Определи, к какому проекту из списка наиболее релевантен этот запрос.
-        
-        Верни ответ в структурированном формате. Например:
-        
-        ```json
-        {{
-            "reasoning": "Запрос касается ошибок при разработке интерфейса",
-            "top_projects": {{
-                "{example_project}": 0.9,
-                "{project_names[1] if len(project_names) > 1 else 'Проект B'}": 0.6,
-                "{project_names[2] if len(project_names) > 2 else 'Проект C'}": 0.3
-            }}
-        }}
-        ```
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
-
+        """Обратная совместимость для классификации ошибок."""
+        return PromptBuilder.build_classification_prompt(question, project_names, "проект")
+    
     @staticmethod
     def build_error_answer_prompt(question: str, errors: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для генерации ответа об ошибках.
-        
-        :param question: Вопрос пользователя
-        :param errors: Список ошибок
-        :param additional_context: Дополнительный контекст
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = """Ты эксперт по анализу ошибок в проектах.
-        
-        Твоя задача: дать информативный ответ на запрос пользователя об ошибках проектов на основе предоставленных данных.
-        
-        Ответ должен быть:
-        1. Структурированным и информативным
-        2. Содержать ключевую информацию об ошибках и их причинах
-        3. Отформатирован в виде Markdown
-        4. Включать рекомендации по предотвращению подобных ошибок
-        
-        Не включай в ответ информацию, которой нет в предоставленных данных.
-        """
-        
-        # Форматируем данные об ошибках для промпта
-        formatted_errors = ""
-        for i, error in enumerate(errors, 1):
-            formatted_errors += f"### Ошибка {i}:\n"
-            formatted_errors += f"**Проект**: {error.get('project', '')}\n"
-            
-            if error.get('date'):
-                formatted_errors += f"**Дата**: {error.get('date')}\n"
-            
-            if error.get('subject'):
-                formatted_errors += f"**Предмет ошибки**: {error.get('subject')}\n"
-                
-            formatted_errors += f"**Описание**: {error.get('description', '')}\n"
-            
-            if error.get('measures'):
-                formatted_errors += f"**Предпринятые меры**: {error.get('measures')}\n"
-                
-            if error.get('reason'):
-                formatted_errors += f"**Причина**: {error.get('reason')}\n"
-                
-            if error.get('stage'):
-                formatted_errors += f"**Стадия проекта**: {error.get('stage')}\n"
-                
-            if error.get('category'):
-                formatted_errors += f"**Категория**: {error.get('category')}\n"
-            
-            formatted_errors += "\n---\n\n"
-        
-        # Пользовательский промпт
-        user_prompt = f"""
-        Запрос пользователя: "{question}"
-        
-        {additional_context}
-        
-        Данные об ошибках:
-        
-        {formatted_errors}
-        
-        Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные об ошибках.
-        Включи в ответ анализ ошибок, их причин и предпринятых мер, а также рекомендации по предотвращению подобных ошибок в будущем.
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
-        
-        
+        """Обратная совместимость для ответов об ошибках."""
+        return PromptBuilder.build_answer_prompt(question, errors, "ошибка", additional_context)
+    
     @staticmethod
     def build_process_classification_prompt(question: str, process_names: List[str]) -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для классификации запроса по бизнес-процессам.
-        
-        :param question: Вопрос пользователя
-        :param process_names: Список названий процессов
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = f"""Ты эксперт по классификации запросов о бизнес-процессах.
-        
-        Твоя задача: определить, к какому бизнес-процессу из предоставленного списка наиболее релевантен запрос пользователя.
-        
-        Список возможных бизнес-процессов:
-        {', '.join(process_names)}
-        
-        Проанализируй запрос и выполни следующие действия:
-        1. Проведи краткое рассуждение о том, к каким бизнес-процессам может относиться запрос
-        2. Определи топ-3 наиболее релевантных бизнес-процесса и дай им оценки от 0 до 1
-        
-        Важно: выбирай только из предоставленного списка бизнес-процессов, не добавляй свои варианты.
-        """
-        
-        # Пользовательский промпт
-        example_process = process_names[0] if process_names else "Обработка заказа"
-        
-        user_prompt = f"""
-        Запрос пользователя о бизнес-процессах: "{question}"
-        
-        Определи, к какому бизнес-процессу из списка наиболее релевантен этот запрос.
-        
-        Верни ответ в структурированном формате. Например:
-        
-        ```json
-        {{
-            "reasoning": "Запрос касается работы с клиентами и обработки их заказов",
-            "top_processes": {{
-                "{example_process}": 0.9,
-                "{process_names[1] if len(process_names) > 1 else 'Обслуживание клиентов'}": 0.6,
-                "{process_names[2] if len(process_names) > 2 else 'Управление складом'}": 0.3
-            }}
-        }}
-        ```
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
-
+        """Обратная совместимость для классификации процессов."""
+        return PromptBuilder.build_classification_prompt(question, process_names, "бизнес-процесс")
+    
     @staticmethod
     def build_process_answer_prompt(question: str, processes: List[Dict[str, Any]], additional_context: str = "") -> Dict[str, str]:
-        """
-        Строит системный и пользовательский промпты для генерации ответа о бизнес-процессах.
-        
-        :param question: Вопрос пользователя
-        :param processes: Список бизнес-процессов
-        :param additional_context: Дополнительный контекст
-        :return: Словарь с ключами 'system' и 'user' для промптов
-        """
-        # Системный промпт
-        system_prompt = """Ты эксперт по бизнес-процессам и BPMN.
-        
-        Твоя задача: дать информативный ответ на запрос пользователя о бизнес-процессах на основе предоставленных данных.
-        
-        Ответ должен быть:
-        1. Структурированным и информативным
-        2. Содержать ключевую информацию о бизнес-процессах
-        3. Отформатирован в виде Markdown
-        4. Включать пояснения и рекомендации при необходимости
-        
-        Не включай в ответ информацию, которой нет в предоставленных данных.
-        """
-        
-        # Форматируем данные о процессах для промпта
-        formatted_processes = ""
-        for i, process in enumerate(processes, 1):
-            formatted_processes += f"### Процесс {i}:\n"
-            formatted_processes += f"**ID**: {process.get('id', '')}\n"
-            formatted_processes += f"**Название**: {process.get('name', '')}\n"
-            
-            if process.get('description'):
-                formatted_processes += f"**Описание**: {process.get('description')}\n"
-                
-            if process.get('text_description'):
-                formatted_processes += f"**Текстовое описание**: {process.get('text_description')}\n"
-            
-            formatted_processes += "\n---\n\n"
-        
-        # Пользовательский промпт
-        user_prompt = f"""
-        Запрос пользователя: "{question}"
-        
-        {additional_context}
-        
-        Данные о бизнес-процессах:
-        
-        {formatted_processes}
-        
-        Сгенерируй подробный и информативный ответ на запрос пользователя, используя предоставленные данные о бизнес-процессах.
-        Включи в ответ анализ процессов и их описания, а также рекомендации по улучшению при необходимости.
-        """
-        
-        return {
-            'system': system_prompt,
-            'user': user_prompt
-        }
+        """Обратная совместимость для ответов о процессах."""
+        return PromptBuilder.build_answer_prompt(question, processes, "процесс", additional_context)

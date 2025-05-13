@@ -1,94 +1,65 @@
 # app/services/error_answer_generator.py
 
 from typing import List, Dict, Any
-from app.adapters.llm_client import LLMClient
+from app.services.base_answer_generator import BaseAnswerGeneratorService
 from app.domain.models.error import Error
-from app.domain.models.answer import Answer
 from app.utils.logging import setup_logger
 from app.utils.prompt_builder import PromptBuilder
 
 # Настройка логгера
-logger = setup_logger("error_answer_generator")
+logger = setup_logger(__name__)
 
-class ErrorAnswerGeneratorService:
+
+class ErrorAnswerGeneratorService(BaseAnswerGeneratorService):
     """
     Сервис для генерации ответов на основе данных об ошибках.
     """
     
-    def __init__(self, llm_client: LLMClient):
+    def _convert_item_to_dict(self, item: Error) -> Dict[str, Any]:
         """
-        Инициализация сервиса.
+        Преобразует ошибку в словарь для промпта.
         
-        :param llm_client: Клиент для взаимодействия с LLM
+        :param item: Модель ошибки
+        :return: Словарь с данными ошибки
         """
-        self.llm_client = llm_client
-        logger.info("Инициализирован сервис генерации ответов об ошибках")
+        return {
+            "date": item.date,
+            "responsible": item.responsible,
+            "subject": item.subject,
+            "description": item.description,
+            "measures": item.measures,
+            "reason": item.reason,
+            "project": item.project,
+            "stage": item.stage,
+            "category": item.category,
+            "relevance_score": item.relevance_score
+        }
     
-    def make_md(self, question: str, errors: List[Error], additional_context: str = "") -> Answer:
+    def _get_prompts(self, question: str, items_data: List[Dict[str, Any]], **kwargs) -> Dict[str, str]:
         """
-        Генерирует markdown-ответ на основе вопроса и данных об ошибках.
+        Получает промпты для генерации ответа об ошибках.
         
         :param question: Вопрос пользователя
-        :param errors: Список ошибок
-        :param additional_context: Дополнительный контекст для генерации ответа
-        :return: Модель Answer с сгенерированным ответом
+        :param items_data: Список данных ошибок
+        :param kwargs: Дополнительные параметры (additional_context)
+        :return: Словарь с промптами
         """
-        logger.info(f"Генерация ответа на вопрос об ошибках: '{question}'")
+        additional_context = kwargs.get('additional_context', '')
+        return PromptBuilder.build_error_answer_prompt(question, items_data, additional_context)
+    
+    def _generate_fallback_text(self, question: str, items: List[Error], **kwargs) -> str:
+        """
+        Генерирует fallback текст для ошибок.
         
-        # Преобразуем ошибки в формат для промпта
-        errors_data = [
-            {
-                "date": error.date,
-                "responsible": error.responsible,
-                "subject": error.subject,
-                "description": error.description,
-                "measures": error.measures,
-                "reason": error.reason,
-                "project": error.project,
-                "stage": error.stage,
-                "category": error.category,
-                "relevance_score": error.relevance_score
-            }
-            for error in errors
-        ]
+        :param question: Вопрос пользователя
+        :param items: Список ошибок
+        :return: Fallback текст
+        """
+        fallback_text = f"По вашему запросу '{question}' найдено {len(items)} ошибок."
         
-        # Получаем промпты для генерации ответа
-        prompts = PromptBuilder.build_error_answer_prompt(question, errors_data, additional_context)
+        if items:
+            fallback_text += "\n\n## Список ошибок:\n\n"
+            for i, error in enumerate(items, 1):
+                fallback_text += f"{i}. **Проект**: {error.project}\n   **Описание**: {error.description}\n\n"
         
-        try:
-            # Генерируем ответ с помощью LLM
-            generated_text = self.llm_client.generate_completion(
-                system_prompt=prompts['system'],
-                user_prompt=prompts['user'],
-                temperature=0.2  # Немного креативности для более человечного ответа
-            )
-            
-            logger.info(f"Сгенерирован ответ об ошибках длиной {len(generated_text) if generated_text else 0} символов")
-            
-            # Формируем модель ответа
-            answer = Answer(
-                text=generated_text,
-                query=question,
-                total_found=len(errors),
-                items=errors
-            )
-            
-            return answer
-            
-        except Exception as e:
-            logger.error(f"Ошибка при генерации ответа об ошибках: {e}")
-            
-            # В случае ошибки возвращаем базовый ответ
-            fallback_text = f"По вашему запросу '{question}' найдено {len(errors)} ошибок."
-            
-            if errors:
-                fallback_text += "\n\n## Список ошибок:\n\n"
-                for i, error in enumerate(errors, 1):
-                    fallback_text += f"{i}. **Проект**: {error.project}\n   **Описание**: {error.description}\n\n"
-            
-            return Answer(
-                text=fallback_text,
-                query=question,
-                total_found=len(errors),
-                items=errors
-            )
+        return fallback_text

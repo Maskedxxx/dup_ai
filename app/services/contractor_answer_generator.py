@@ -1,93 +1,64 @@
 # app/services/contractor_answer_generator.py
 
 from typing import List, Dict, Any
-from app.adapters.llm_client import LLMClient
+from app.services.base_answer_generator import BaseAnswerGeneratorService
 from app.domain.models.contractor import Contractor
-from app.domain.models.answer import Answer
 from app.utils.logging import setup_logger
 from app.utils.prompt_builder import PromptBuilder
 
 # Настройка логгера
 logger = setup_logger(__name__)
 
-class AnswerGeneratorService:
+
+class AnswerGeneratorService(BaseAnswerGeneratorService):
     """
     Сервис для генерации ответов на основе данных о подрядчиках.
     """
     
-    def __init__(self, llm_client: LLMClient):
+    def _convert_item_to_dict(self, item: Contractor) -> Dict[str, Any]:
         """
-        Инициализация сервиса.
+        Преобразует подрядчика в словарь для промпта.
         
-        :param llm_client: Клиент для взаимодействия с LLM
+        :param item: Модель подрядчика
+        :return: Словарь с данными подрядчика
         """
-        self.llm_client = llm_client
-        logger.info("Инициализирован сервис генерации ответов")
+        return {
+            "content": f"Название: {item.name}\nВиды работ: {item.work_types}\nКонтактное лицо: {item.contact_person}\nКонтакты: {item.contacts}",
+            "metadata": {
+                "website": item.website,
+                "projects": item.projects,
+                "comments": item.comments,
+                "primary_info": item.primary_info,
+                "staff_size": item.staff_size,
+                "relevance_score": item.relevance_score
+            }
+        }
     
-    def make_md(self, question: str, contractors: List[Contractor], additional_context: str = "") -> Answer:
+    def _get_prompts(self, question: str, items_data: List[Dict[str, Any]], **kwargs) -> Dict[str, str]:
         """
-        Генерирует markdown-ответ на основе вопроса и данных о подрядчиках.
+        Получает промпты для генерации ответа о подрядчиках.
         
         :param question: Вопрос пользователя
-        :param contractors: Список подрядчиков
-        :param additional_context: Дополнительный контекст для генерации ответа
-        :return: Модель Answer с сгенерированным ответом
+        :param items_data: Список данных подрядчиков
+        :param kwargs: Дополнительные параметры (additional_context)
+        :return: Словарь с промптами
         """
-        logger.info(f"Генерация ответа на вопрос: '{question}'")
+        additional_context = kwargs.get('additional_context', '')
+        return PromptBuilder.build_answer_prompt(question, items_data, additional_context)
+    
+    def _generate_fallback_text(self, question: str, items: List[Contractor], **kwargs) -> str:
+        """
+        Генерирует fallback текст для подрядчиков.
         
-        # Преобразуем contractors в документы для генератора
-        documents = [
-            {
-                "content": f"Название: {c.name}\nВиды работ: {c.work_types}\nКонтактное лицо: {c.contact_person}\nКонтакты: {c.contacts}",
-                "metadata": {
-                    "website": c.website,
-                    "projects": c.projects,
-                    "comments": c.comments,
-                    "primary_info": c.primary_info,
-                    "staff_size": c.staff_size,
-                    "relevance_score": c.relevance_score
-                }
-            }
-            for c in contractors
-        ]
+        :param question: Вопрос пользователя
+        :param items: Список подрядчиков
+        :return: Fallback текст
+        """
+        fallback_text = f"По вашему запросу '{question}' найдено {len(items)} подрядчиков."
         
-        # Получаем промпты для генерации ответа
-        prompts = PromptBuilder.build_answer_prompt(question, documents, additional_context)
+        if items:
+            fallback_text += "\n\n## Список подрядчиков:\n\n"
+            for i, c in enumerate(items, 1):
+                fallback_text += f"{i}. **{c.name}** - {c.work_types}\n"
         
-        try:
-            # Генерируем ответ с помощью LLM
-            generated_text = self.llm_client.generate_completion(
-                system_prompt=prompts['system'],
-                user_prompt=prompts['user'],
-                temperature=0.2  # Немного креативности для более человечного ответа
-            )
-            
-            logger.info(f"Сгенерирован ответ длиной {len(generated_text) if generated_text else 0} символов")
-            
-            # Формируем модель ответа
-            answer = Answer(
-                text=generated_text,
-                query=question,
-                total_found=len(contractors),
-                items=contractors
-            )
-            
-            return answer
-            
-        except Exception as e:
-            logger.error(f"Ошибка при генерации ответа: {e}")
-            
-            # В случае ошибки возвращаем базовый ответ
-            fallback_text = f"По вашему запросу '{question}' найдено {len(contractors)} подрядчиков."
-            
-            if contractors:
-                fallback_text += "\n\n## Список подрядчиков:\n\n"
-                for i, c in enumerate(contractors, 1):
-                    fallback_text += f"{i}. **{c.name}** - {c.work_types}\n"
-            
-            return Answer(
-                text=fallback_text,
-                query=question,
-                total_found=len(contractors),
-                items=contractors
-            )
+        return fallback_text

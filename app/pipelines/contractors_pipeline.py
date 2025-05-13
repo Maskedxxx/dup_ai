@@ -1,21 +1,21 @@
 # app/pipelines/contractors_pipeline.py
 
+from typing import Optional
 import pandas as pd
-from typing import List, Dict
-from app.pipelines.base import Pipeline
-from app.domain.models.answer import Answer
+from app.pipelines.base import BasePipeline
 from app.domain.models.contractor import Contractor
+from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
 from app.services.contractor_normalization import NormalizationService
 from app.services.contractor_classifier import ContractorClassifierService
 from app.services.contractor_answer_generator import AnswerGeneratorService
-from app.domain.enums import ButtonType
 from app.utils.logging import setup_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
 
-class ContractorsPipeline(Pipeline):
+
+class ContractorsPipeline(BasePipeline):
     """
     Пайплайн для обработки запросов о подрядчиках.
     """
@@ -28,100 +28,61 @@ class ContractorsPipeline(Pipeline):
         answer_generator: AnswerGeneratorService
     ):
         """
-        Инициализация пайплайна.
-        
-        :param excel_loader: Адаптер для загрузки данных из Excel
-        :param normalization_service: Сервис нормализации данных
-        :param classifier_service: Сервис классификации подрядчиков
-        :param answer_generator: Сервис генерации ответов
+        Инициализация пайплайна подрядчиков.
         """
-        self.excel_loader = excel_loader
-        self.normalization_service = normalization_service
-        self.classifier_service = classifier_service
-        self.answer_generator = answer_generator
-        logger.info("Инициализирован пайплайн для обработки запросов о подрядчиках")
+        super().__init__(
+            excel_loader=excel_loader,
+            normalization_service=normalization_service,
+            classifier_service=classifier_service,
+            answer_generator=answer_generator,
+            button_type=ButtonType.CONTRACTORS
+        )
     
-    def process(self, question: str) -> Answer:
+    def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Contractor:
         """
-        Обрабатывает вопрос о подрядчиках и возвращает ответ.
+        Создает экземпляр подрядчика из строки DataFrame.
         
-        :param question: Вопрос пользователя
-        :return: Модель Answer с результатом обработки
+        :param row: Строка DataFrame
+        :param relevance_score: Оценка релевантности
+        :return: Экземпляр Contractor
         """
-        logger.info(f"Обработка вопроса: '{question}'")
-        
-        try:
-            # 1. Загрузка данных
-            df = self.excel_loader.load(button_type=ButtonType.CONTRACTORS)
-
-            
-            # 2. Нормализация данных
-            cleaned_df = self.normalization_service.clean_df(df)
-            
-            # 3. Загрузка типов работ
-            self.classifier_service.load_work_types(cleaned_df)
-            
-            # 4. Классификация вопроса
-            best_work_type = self.classifier_service.classify(question)
-            
-            # 5. Фильтрация подрядчиков
-            filtered_df, relevance_scores = self.classifier_service.filter_contractors(cleaned_df, best_work_type)
-            
-            # 6. Преобразование в модели
-            contractors = self._dataframe_to_models(filtered_df, relevance_scores)
-            
-            # 7. Генерация ответа
-            additional_context = f"Найдено {len(filtered_df)} подрядчиков для типа работ '{best_work_type}'."
-            answer = self.answer_generator.make_md(question, contractors, additional_context)
-            
-            logger.info(f"Успешно обработан вопрос, найдено {len(contractors)} подрядчиков")
-            return answer
-            
-        except Exception as e:
-            logger.error(f"Ошибка при обработке вопроса: {e}")
-            
-            # В случае ошибки возвращаем базовый ответ с информацией об ошибке
-            error_answer = Answer(
-                text=f"К сожалению, произошла ошибка при обработке вашего запроса: {str(e)}",
-                query=question,
-                total_found=0,
-                items=[]
-            )
-            
-            return error_answer
+        return Contractor(
+            name=row.get('name', ''),
+            work_types=row.get('work_types', ''),
+            contact_person=row.get('contact_person', ''),
+            contacts=row.get('contacts', ''),
+            website=row.get('website', ''),
+            projects=row.get('projects', ''),
+            comments=row.get('comments', ''),
+            primary_info=row.get('primary_info', ''),
+            staff_size=row.get('staff_size', ''),
+            relevance_score=relevance_score
+        )
     
-    def _dataframe_to_models(self, df: pd.DataFrame, relevance_scores: Dict[int, float]) -> List[Contractor]:
+    def _get_entity_name(self) -> str:
         """
-        Преобразует DataFrame в список моделей Contractor.
+        Возвращает название сущности.
         
-        :param df: DataFrame с данными о подрядчиках
-        :param relevance_scores: Словарь с оценками релевантности {индекс: оценка}
-        :return: Список моделей Contractor
+        :return: 'подрядчиков'
         """
-        logger.debug(f"Преобразование {len(df)} записей в модели")
-        
-        contractors = []
-        for idx, row in df.iterrows():
-            try:
-                contractor = Contractor(
-                    name=row.get('name', ''),
-                    work_types=row.get('work_types', ''),
-                    contact_person=row.get('contact_person', ''),
-                    contacts=row.get('contacts', ''),
-                    website=row.get('website', ''),
-                    projects=row.get('projects', ''),
-                    comments=row.get('comments', ''),
-                    primary_info=row.get('primary_info', ''),
-                    staff_size=row.get('staff_size', ''),
-                    relevance_score=relevance_scores.get(idx)
-                )
-                contractors.append(contractor)
-            except Exception as e:
-                logger.warning(f"Ошибка преобразования записи {idx}: {e}")
-                
-        # Сортируем по релевантности, если она указана
-        if relevance_scores:
-            contractors.sort(key=lambda x: x.relevance_score or 0, reverse=True)
-            
-        logger.debug(f"Преобразовано {len(contractors)} моделей")
-        return contractors
+        return "подрядчиков"
+    
+    def _load_classifier_items(self, df: pd.DataFrame):
+        """
+        Загружает типы работ для классификации.
+        Переопределяем для совместимости со старым API.
+        """
+        self.classifier_service.load_work_types(df)
+    
+    def _filter_data(self, df: pd.DataFrame, item_value: str):
+        """
+        Фильтрует подрядчиков по типу работ.
+        Переопределяем для совместимости со старым API.
+        """
+        return self.classifier_service.filter_contractors(df, item_value)
+    
+    def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
+        """
+        Генерирует контекст для подрядчиков.
+        """
+        return f"Найдено {len(filtered_df)} подрядчиков для типа работ '{best_item}'."

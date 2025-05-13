@@ -1,9 +1,8 @@
 # app/pipelines/processes_pipeline.py
 
+from typing import Optional
 import pandas as pd
-from typing import List, Dict
-from app.pipelines.base import Pipeline
-from app.domain.models.answer import Answer
+from app.pipelines.base import BasePipeline
 from app.domain.models.process import Process
 from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
@@ -13,9 +12,10 @@ from app.services.process_answer_generator import ProcessAnswerGeneratorService
 from app.utils.logging import setup_logger
 
 # Настройка логгера
-logger = setup_logger("processes_pipeline")
+logger = setup_logger(__name__)
 
-class ProcessesPipeline(Pipeline):
+
+class ProcessesPipeline(BasePipeline):
     """
     Пайплайн для обработки запросов о бизнес-процессах.
     """
@@ -28,90 +28,55 @@ class ProcessesPipeline(Pipeline):
         answer_generator: ProcessAnswerGeneratorService
     ):
         """
-        Инициализация пайплайна.
+        Инициализация пайплайна процессов.
         """
-        self.excel_loader = excel_loader
-        self.normalization_service = normalization_service
-        self.classifier_service = classifier_service
-        self.answer_generator = answer_generator
-        logger.info("Инициализирован пайплайн для обработки запросов о бизнес-процессах")
+        super().__init__(
+            excel_loader=excel_loader,
+            normalization_service=normalization_service,
+            classifier_service=classifier_service,
+            answer_generator=answer_generator,
+            button_type=ButtonType.PROCESSES
+        )
     
-    def process(self, question: str) -> Answer:
+    def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Process:
         """
-        Обрабатывает вопрос о бизнес-процессах и возвращает ответ.
+        Создает экземпляр процесса из строки DataFrame.
         
-        :param question: Вопрос пользователя
-        :return: Модель Answer с результатом обработки
+        :param row: Строка DataFrame
+        :param relevance_score: Оценка релевантности
+        :return: Экземпляр Process
         """
-        logger.info(f"Обработка вопроса о бизнес-процессах: '{question}'")
-        
-        try:
-            # 1. Загрузка данных
-            df = self.excel_loader.load(button_type=ButtonType.PROCESSES)
-            
-            # 2. Нормализация данных
-            cleaned_df = self.normalization_service.clean_df(df)
-            
-            # 3. Загрузка названий процессов
-            self.classifier_service.load_process_names(cleaned_df)
-            
-            # 4. Классификация вопроса по процессам
-            best_process_name = self.classifier_service.classify(question)
-            
-            # 5. Фильтрация процессов
-            filtered_df, relevance_scores = self.classifier_service.filter_processes(cleaned_df, best_process_name)
-            
-            # 6. Преобразование в модели
-            processes = self._dataframe_to_models(filtered_df, relevance_scores)
-            
-            # 7. Генерация ответа
-            additional_context = f"Найдено {len(filtered_df)} бизнес-процессов по запросу."
-            answer = self.answer_generator.make_md(question, processes, additional_context)
-            
-            logger.info(f"Успешно обработан вопрос о бизнес-процессах, найдено {len(processes)} процессов")
-            return answer
-            
-        except Exception as e:
-            logger.error(f"Ошибка при обработке вопроса о бизнес-процессах: {e}")
-            
-            # В случае ошибки возвращаем базовый ответ с информацией об ошибке
-            error_answer = Answer(
-                text=f"К сожалению, произошла ошибка при обработке вашего запроса о бизнес-процессах: {str(e)}",
-                query=question,
-                total_found=0,
-                items=[]
-            )
-            
-            return error_answer
+        return Process(
+            id=str(row.get('id', '')),
+            name=row.get('name', ''),
+            description=row.get('description', ''),
+            json_file=row.get('json_file', ''),
+            text_description=row.get('text_description', ''),
+            relevance_score=relevance_score
+        )
     
-    def _dataframe_to_models(self, df: pd.DataFrame, relevance_scores: Dict[int, float]) -> List[Process]:
+    def _get_entity_name(self) -> str:
         """
-        Преобразует DataFrame в список моделей Process.
+        Возвращает название сущности.
         
-        :param df: DataFrame с данными о бизнес-процессах
-        :param relevance_scores: Словарь с оценками релевантности {индекс: оценка}
-        :return: Список моделей Process
+        :return: 'бизнес-процессов'
         """
-        logger.debug(f"Преобразование {len(df)} записей в модели Process")
-        
-        processes = []
-        for idx, row in df.iterrows():
-            try:
-                process = Process(
-                    id=str(row.get('id', '')),
-                    name=row.get('name', ''),
-                    description=row.get('description', ''),
-                    json_file=row.get('json_file', ''),
-                    text_description=row.get('text_description', ''),
-                    relevance_score=relevance_scores.get(idx)
-                )
-                processes.append(process)
-            except Exception as e:
-                logger.warning(f"Ошибка преобразования записи {idx} в модель Process: {e}")
-                
-        # Сортируем по релевантности
-        if relevance_scores:
-            processes.sort(key=lambda x: x.relevance_score or 0, reverse=True)
-            
-        logger.debug(f"Преобразовано {len(processes)} моделей Process")
-        return processes
+        return "бизнес-процессов"
+    
+    def _load_classifier_items(self, df: pd.DataFrame):
+        """
+        Загружает названия процессов для классификации.
+        """
+        self.classifier_service.load_process_names(df)
+    
+    def _filter_data(self, df: pd.DataFrame, item_value: str):
+        """
+        Фильтрует процессы по названию.
+        """
+        return self.classifier_service.filter_processes(df, item_value)
+    
+    def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
+        """
+        Генерирует контекст для процессов.
+        """
+        return f"Найдено {len(filtered_df)} бизнес-процессов по запросу."
