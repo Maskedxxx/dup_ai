@@ -70,7 +70,7 @@ class LLMSettings(BaseAppSettings):
     model_config = ConfigDict(
         env_file='.env',
         extra='allow',
-        env_prefix='CONTRACTOR_'  # Используем общий префикс из .env
+        env_prefix='LLM_'  # Используем общий префикс из .env
     )
     
     # Настройки LLM
