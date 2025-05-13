@@ -144,7 +144,8 @@ class BaseClassifierService(ABC):
             logger.warning(f"Колонка '{column_name}' не найдена в данных")
             return df.copy(), {}
         
-        filtered_df = df[df[column_name] == item_value].copy()
+        # df нечувствительная к регистру:
+        filtered_df = df[df[column_name].str.lower() == item_value.lower()].copy()
         
         # Если не найдено элементов, возвращаем пустой DataFrame
         if len(filtered_df) == 0:
