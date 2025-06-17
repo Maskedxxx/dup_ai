@@ -1,10 +1,35 @@
+# Документация по сервисам DUP AI
+
+## Оглавление
+- [AI DUP Main API](#сервис-ai-dup-main-api)
+- [Gradio UI](#визуальный-сервис-gradio-ui)
+- [Ollama GPU Check](#отладка-и-мониторинг-ollama-llm)
+- [Типовые проблемы и решения](#типовые-проблемы-и-решения)
+
+### Полезные команды
+```bash
+systemctl status ai-dup-main-api.service
+systemctl status ai-dup-gradio-ui.service
+systemctl status ollama-check-gpu.timer
+sudo journalctl -u ai-dup-main-api.service -e
+sudo journalctl -u ai-dup-gradio-ui.service -e
+```
+
 ### Сервис: AI DUP Main API
 
 - **systemd unit-файл:** `/etc/systemd/system/ai-dup-main-api.service`
 - **Описание:** Главный API-сервис бизнес-логики для команды DUP (работа с LLM, генерация ответов по внутренним данным)
 - **Рабочая директория:** `/home/nemov_ma/Documents/dup_ai_final_2`
 - **Пользователь:** `nemov_ma`
-- **Переменные окружения:** (включая .env)
+- **Переменные окружения:**  
+  Файл `.env` располагается в рабочей директории. Ключевые переменные:
+  ```bash
+  APP_NAME=Contractor Analysis API
+  HOST=0.0.0.0
+  PORT=8080
+  LLM_OLLAMA_BASE_URL=http://localhost:11434/v1
+  LLM_OLLAMA_MODEL=llama3.1:8b-instruct-fp16
+  ```
 - **Логи:**
   - Доступ: `/var/log/ai-dup/main-api-access.log`
   - Ошибки: `/var/log/ai-dup/main-api-error.log`
@@ -40,6 +65,8 @@ sudo systemctl restart ai-dup-main-api.service
 #### Диагностика и устранение проблем
 - Проверить статус сервиса через `systemctl status`
 - В случае ошибки — открыть `error.log`
+- При необходимости перезапустить сервис: `sudo systemctl restart ai-dup-main-api.service`
+- Если порт 8080 занят, следуйте шагам из раздела «Проверка порта 8080»
 
 #### Проверка окружения
 - Приложение запускается в окружении:
@@ -128,6 +155,7 @@ sudo systemctl restart ai-dup-gradio-ui.service
 - Проверить статус сервиса через `systemctl status ai-dup-gradio-ui.service`
 - В поле вывода `Main PID` найти PID процесса.
 - В случае ошибки — открыть `error.log`
+- При необходимости перезапустить сервис: `sudo systemctl restart ai-dup-gradio-ui.service`
 
 ### Отладка и мониторинг Ollama (LLM)
 
@@ -189,3 +217,25 @@ sudo systemctl restart ai-dup-gradio-ui.service
   ```bash
   docker restart ollama-server
   ```
+
+### Типовая последовательность действий при сбое
+1. Проверить статус нужного сервиса:
+   ```bash
+   systemctl status <service>
+   ```
+2. Просмотреть последние ошибки:
+   ```bash
+   tail -n 50 /var/log/ai-dup/<service>-error.log
+   ```
+3. Перезапустить сервис при необходимости:
+   ```bash
+   sudo systemctl restart <service>
+   ```
+4. Если проблема не решена, убедитесь в корректности `.env` и проверьте занятые порты.
+
+### Типовые проблемы и решения
+| Симптом | Возможная причина | Решение |
+| --- | --- | --- |
+| Сервис не запускается | `.env` отсутствует или содержит ошибки | Проверьте файл и перезапустите сервис |
+| Порт 8080 занят | Другой процесс использует порт | Найдите процесс `sudo lsof -i :8080` и завершите его |
+| Ollama не использует GPU | Контейнер запущен без доступа к GPU | Запустите `/usr/local/bin/check_ollama_gpu.sh` или `docker restart ollama-server` |
