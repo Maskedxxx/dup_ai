@@ -90,7 +90,7 @@ uvicorn app.main:app --reload
 
 ### 5. Проверка работы
 ```bash
-curl http://localhost:8080/health
+curl http://localhost:8080/v1/health 
 ```
 
 ## API Документация
