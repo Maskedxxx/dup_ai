@@ -117,34 +117,49 @@ class BasePipeline(Pipeline):
         
         try:
             # 1. Загрузка данных
+            logger.debug("Шаг 1: загрузка данных")
             df = self.excel_loader.load(button_type=self.button_type)
-            
+            logger.debug(f"Загружено {len(df)} строк")
+
             # 2. Нормализация данных
+            logger.debug("Шаг 2: нормализация данных")
             cleaned_df = self.normalization_service.clean_df(df)
-            
+            logger.debug(f"После нормализации: {len(cleaned_df)} строк")
+
             # 3. Предварительная обработка (например, фильтрация по категории)
+            logger.debug("Шаг 3: предварительная обработка")
             processed_df = self._pre_process_dataframe(cleaned_df, **kwargs)
-            
+            logger.debug(f"После предварительной обработки: {len(processed_df)} строк")
+
             # Проверка наличия данных после предварительной обработки
             if len(processed_df) == 0:
                 logger.warning(f"Нет данных после предварительной обработки")
                 return self._create_empty_answer(question, kwargs)
-            
+
             # 4. Загрузка элементов для классификации
+            logger.debug("Шаг 4: загрузка элементов для классификации")
             self._load_classifier_items(processed_df)
-            
+
             # 5. Классификация вопроса
+            logger.debug("Шаг 5: классификация вопроса")
             best_item = self.classifier_service.classify(question)
-            
+            logger.debug(f"Выбран элемент для фильтрации: {best_item}")
+
             # 6. Фильтрация данных
+            logger.debug("Шаг 6: фильтрация данных")
             filtered_df, relevance_scores = self._filter_data(processed_df, best_item)
-            
+            logger.debug(f"После фильтрации: {len(filtered_df)} строк")
+
             # 7. Преобразование в модели
+            logger.debug("Шаг 7: преобразование в модели")
             items = self._dataframe_to_models(filtered_df, relevance_scores)
+            logger.debug(f"Сформировано {len(items)} моделей")
             
             # 8. Генерация ответа
+            logger.debug("Шаг 8: генерация ответа")
             additional_context = self._generate_additional_context(filtered_df, best_item, **kwargs)
             answer = self._generate_answer(question, items, additional_context, **kwargs)
+            logger.debug("Ответ сгенерирован")
             
             logger.info(f"Успешно обработан вопрос о {entity_name}, найдено {len(items)} элементов")
             return answer
@@ -159,7 +174,8 @@ class BasePipeline(Pipeline):
         """
         # Используем универсальный метод load_items из базового класса
         if hasattr(self.classifier_service, 'load_items'):
-            self.classifier_service.load_items(df)
+            items = self.classifier_service.load_items(df)
+            logger.debug(f"Загружено элементов для классификации: {len(items)}")
         else:
             # Fallback для совместимости
             logger.warning("Использование старого API классификатора")
@@ -170,7 +186,9 @@ class BasePipeline(Pipeline):
         """
         # Используем универсальный метод filter_items из базового класса
         if hasattr(self.classifier_service, 'filter_items'):
-            return self.classifier_service.filter_items(df, item_value)
+            filtered_df, scores = self.classifier_service.filter_items(df, item_value)
+            logger.debug(f"Результат фильтрации: {len(filtered_df)} строк")
+            return filtered_df, scores
         else:
             # Fallback для совместимости
             logger.warning("Использование старого API классификатора")
@@ -180,6 +198,7 @@ class BasePipeline(Pipeline):
         """
         Генерирует ответ с помощью генератора ответов.
         """
+        logger.debug("Вызов генератора ответов")
         return self.answer_generator.make_md(
             question=question,
             items=items,

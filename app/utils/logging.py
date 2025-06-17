@@ -7,6 +7,10 @@ from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Optional
 
+# Единый файл логов для всей системы
+GLOBAL_LOG_FILE = "pipeline.log"
+_global_handler: Optional[RotatingFileHandler] = None
+
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "LOGS"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -36,9 +40,10 @@ def setup_logger(
     backup_count: int = 3,
 ) -> logging.Logger:
     """
-    Логгер с двумя обработчиками:
-    • StreamHandler  – в терминал (>= INFO)  
+    Логгер с двумя обработчиками и единым файлом логов:
+    • StreamHandler  – в терминал (>= INFO)
     • RotatingFileHandler – в LOGS/<name>.log (>= DEBUG)
+    • RotatingFileHandler – в LOGS/pipeline.log (>= DEBUG) для общей трассировки
 
     :param name: имя логгера (обычно __name__)
     """
@@ -68,12 +73,27 @@ def setup_logger(
     fh.setFormatter(formatter)
     logger.addHandler(fh)
 
+    global _global_handler
+    if _global_handler is None:
+        global_log_file = LOG_DIR / GLOBAL_LOG_FILE
+        _global_handler = RotatingFileHandler(
+            global_log_file,
+            maxBytes=max_bytes,
+            backupCount=backup_count,
+            encoding="utf-8",
+        )
+        _global_handler.setLevel(file_level)
+        _global_handler.setFormatter(formatter)
+
+    logger.addHandler(_global_handler)
+
     logger.propagate = False                 # исключаем дублирование
 
     logger.debug(
-        "Логгер «%s» инициализирован. Файл: %s (rotate @ %d bytes, keep %d).",
+        "Логгер «%s» инициализирован. Файлы: %s и %s (rotate @ %d bytes, keep %d).",
         name,
         log_file,
+        GLOBAL_LOG_FILE,
         max_bytes,
         backup_count,
     )
