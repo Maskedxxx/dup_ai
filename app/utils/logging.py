@@ -10,6 +10,9 @@ from typing import Optional
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "LOGS"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
+# Файл, в который пишутся все логи приложения
+LOG_FILE = LOG_DIR / "app.log"
+
 
 def _build_formatter() -> logging.Formatter:
     """
@@ -37,8 +40,8 @@ def setup_logger(
 ) -> logging.Logger:
     """
     Логгер с двумя обработчиками:
-    • StreamHandler  – в терминал (>= INFO)  
-    • RotatingFileHandler – в LOGS/<name>.log (>= DEBUG)
+    • StreamHandler  – в терминал (>= INFO)
+    • RotatingFileHandler – в LOGS/app.log (>= DEBUG)
 
     :param name: имя логгера (обычно __name__)
     """
@@ -57,7 +60,9 @@ def setup_logger(
     logger.addHandler(sh)
 
     # ── файл с ротацией ────────────────────────────────────────────────────────
-    log_file = LOG_DIR / f"{name}.log"
+    # Используем единый файл для всех логгеров, чтобы видеть полную цепочку
+    # событий во всём приложении
+    log_file = LOG_FILE
     fh = RotatingFileHandler(
         log_file,
         maxBytes=max_bytes,

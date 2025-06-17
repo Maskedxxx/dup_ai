@@ -62,10 +62,12 @@ async def ask(
     try:
         # Получаем соответствующий пайплайн
         pipeline = get_pipeline(request.button, request.risk_category)
+        logger.debug(f"Используется пайплайн: {pipeline.__class__.__name__}")
         
         # Используем словарь обработчиков для вызова правильного метода
         processor = BUTTON_PROCESSORS[request.button]
         answer = processor(pipeline, request)
+        logger.debug("Пайплайн завершил обработку запроса")
         
         # Получаем лимит из конфигурации если не указан
         if limit is None:

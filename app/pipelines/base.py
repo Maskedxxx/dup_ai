@@ -117,12 +117,15 @@ class BasePipeline(Pipeline):
         
         try:
             # 1. Загрузка данных
+            logger.debug("[1/8] Загрузка данных из Excel")
             df = self.excel_loader.load(button_type=self.button_type)
             
             # 2. Нормализация данных
+            logger.debug("[2/8] Нормализация данных")
             cleaned_df = self.normalization_service.clean_df(df)
             
             # 3. Предварительная обработка (например, фильтрация по категории)
+            logger.debug("[3/8] Предварительная обработка")
             processed_df = self._pre_process_dataframe(cleaned_df, **kwargs)
             
             # Проверка наличия данных после предварительной обработки
@@ -131,18 +134,23 @@ class BasePipeline(Pipeline):
                 return self._create_empty_answer(question, kwargs)
             
             # 4. Загрузка элементов для классификации
+            logger.debug("[4/8] Загрузка элементов для классификации")
             self._load_classifier_items(processed_df)
             
             # 5. Классификация вопроса
+            logger.debug("[5/8] Классификация вопроса")
             best_item = self.classifier_service.classify(question)
             
             # 6. Фильтрация данных
+            logger.debug("[6/8] Фильтрация данных")
             filtered_df, relevance_scores = self._filter_data(processed_df, best_item)
             
             # 7. Преобразование в модели
+            logger.debug("[7/8] Преобразование записей в модели")
             items = self._dataframe_to_models(filtered_df, relevance_scores)
             
             # 8. Генерация ответа
+            logger.debug("[8/8] Генерация ответа")
             additional_context = self._generate_additional_context(filtered_df, best_item, **kwargs)
             answer = self._generate_answer(question, items, additional_context, **kwargs)
             
