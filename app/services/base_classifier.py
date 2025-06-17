@@ -1,20 +1,14 @@
 # app/services/base_classifier.py
 
 import pandas as pd
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Type, get_origin, get_args
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, create_model
 from app.adapters.llm_client import LLMClient
 from app.utils.logging import setup_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
-
-
-class ClassificationResult(BaseModel):
-    """Результат классификации запроса."""
-    reasoning: str = Field(..., description="Краткое рассуждение о классификации")
-    top_items: Dict[str, float] = Field(..., description="Топ-3 элемента с оценками релевантности (от 0 до 1)")
 
 
 class BaseClassifierService(ABC):
@@ -52,6 +46,40 @@ class BaseClassifierService(ABC):
         :return: Тип элементов (например, "проект", "процесс")
         """
         pass
+    
+    def _create_dynamic_classification_model(self, items: List[str]) -> Type[BaseModel]:
+        """
+        Создает динамическую модель Pydantic с Literal для точного выбора элементов.
+        
+        :param items: Список доступных элементов для выбора
+        :return: Класс модели Pydantic
+        """
+        if not items:
+            logger.warning("Пустой список элементов для создания модели")
+            items = ["Нет данных"]
+        
+        # Создаем Literal тип из списка элементов
+        from typing import Literal
+        literal_type = Literal[tuple(items)]
+        
+        # Создаем модель для одного результата сопоставления
+        MatchResultWithLiteral = create_model(
+            'MatchResultWithLiteral',
+            item=(literal_type, Field(..., description="Выбранный элемент из списка")),
+            score=(float, Field(..., ge=0, le=1, description="Оценка релевантности от 0 до 1"))
+        )
+        
+        # Создаем основную модель результата классификации
+        ClassificationResult = create_model(
+            'ClassificationResult',
+            reasoning=(str, Field(..., description="Краткое рассуждение о классификации")),
+            top_matches=(List[MatchResultWithLiteral], Field(..., 
+                description="Топ-3 элемента с оценками релевантности", 
+                min_items=1, max_items=3))
+        )
+        
+        logger.debug(f"Создана динамическая модель для {len(items)} элементов")
+        return ClassificationResult
     
     def load_items(self, df: pd.DataFrame) -> List[str]:
         """
@@ -93,6 +121,9 @@ class BaseClassifierService(ABC):
             logger.warning("Список элементов пуст, невозможно классифицировать запрос")
             return ""
         
+        # Создаем динамическую модель для текущего списка элементов
+        classification_model = self._create_dynamic_classification_model(self.items_list)
+        
         # Получаем промпты для классификации
         prompts = self._build_classification_prompts(question)
         
@@ -101,21 +132,23 @@ class BaseClassifierService(ABC):
             result = self.llm_client.generate_structured_completion(
                 system_prompt=prompts['system'],
                 user_prompt=prompts['user'],
-                response_model=ClassificationResult,
+                response_model=classification_model,
                 temperature=0
             )
             
-            if result and hasattr(result, 'top_items'):
-                top_items = result.top_items
+            if result and hasattr(result, 'top_matches'):
+                top_matches = result.top_matches
                 logger.info(f"Рассуждение модели: {result.reasoning}")
-                logger.info(f"Топ-3 элемента: {top_items}")
                 
-                # Находим элемент с наивысшей оценкой
-                if top_items:
-                    best_item = max(top_items.items(), key=lambda x: x[1])
-                    logger.info(f"Выбран элемент: {best_item[0]} с оценкой {best_item[1]}")
-                    
-                    return best_item[0]
+                # Логируем все результаты
+                for i, match in enumerate(top_matches, 1):
+                    logger.info(f"Вариант {i}: {match.item} (оценка: {match.score})")
+                
+                # Возвращаем элемент с наивысшей оценкой
+                if top_matches:
+                    best_match = max(top_matches, key=lambda x: x.score)
+                    logger.info(f"Выбран элемент: {best_match.item} с оценкой {best_match.score}")
+                    return best_match.item
             
             logger.warning("Модель не вернула структурированный ответ")
             return ""
@@ -144,7 +177,7 @@ class BaseClassifierService(ABC):
             logger.warning(f"Колонка '{column_name}' не найдена в данных")
             return df.copy(), {}
         
-        # df нечувствительная к регистру:
+        # Фильтрация с учетом регистра
         filtered_df = df[df[column_name].str.lower() == item_value.lower()].copy()
         
         # Если не найдено элементов, возвращаем пустой DataFrame
