@@ -187,7 +187,11 @@ class PipelineLogger:
         if not app_settings.debug:
             return  # В PROD режиме детали не логируем
             
-        pipeline_prefix = f"[{self.pipeline_id}]" if self.pipeline_id else "[NO_PIPELINE]"
+        # Используем глобальный pipeline_id если локальный не установлен
+        global _current_pipeline_id
+        current_id = self.pipeline_id or _current_pipeline_id
+        
+        pipeline_prefix = f"[{current_id}]" if current_id else "[NO_PIPELINE]"
         full_message = f"{pipeline_prefix} {message}"
         
         if level.upper() == "DEBUG":
