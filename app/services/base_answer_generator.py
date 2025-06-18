@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from pydantic import BaseModel
 from app.adapters.llm_client import LLMClient
 from app.domain.models.answer import Answer
-from app.utils.logging import setup_logger
+from app.utils.logging import setup_logger, get_pipeline_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
@@ -24,6 +24,7 @@ class BaseAnswerGeneratorService(ABC):
         :param llm_client: Клиент для взаимодействия с LLM
         """
         self.llm_client = llm_client
+        self.pipeline_logger = get_pipeline_logger(f"{self.__class__.__name__}")
         logger.info(f"Инициализирован {self.__class__.__name__}")
     
     @abstractmethod
@@ -73,27 +74,56 @@ class BaseAnswerGeneratorService(ABC):
         :param kwargs: Дополнительные параметры специфичные для типа данных
         :return: Модель Answer с сгенерированным ответом
         """
-        logger.info(f"Генерация ответа на вопрос: '{question}'")
+        self.pipeline_logger.log_detail(f"Начинаем генерацию ответа на вопрос: '{question}'")
+        self.pipeline_logger.log_detail(f"Количество элементов для генерации: {len(items)}")
         
         # Преобразуем элементы в формат для промпта
-        items_data = [self._convert_item_to_dict(item) for item in items]
+        self.pipeline_logger.log_detail("Преобразуем элементы в формат для промпта")
+        items_data = []
+        for i, item in enumerate(items):
+            try:
+                item_dict = self._convert_item_to_dict(item)
+                items_data.append(item_dict)
+                self.pipeline_logger.log_detail(f"Элемент {i+1} преобразован в словарь")
+            except Exception as e:
+                self.pipeline_logger.log_detail(f"Ошибка преобразования элемента {i+1}: {e}", "WARNING")
         
         # Объединяем дополнительный контекст с kwargs для удобства
         if additional_context:
             kwargs['additional_context'] = additional_context
+            self.pipeline_logger.log_detail(f"Добавлен дополнительный контекст: {additional_context}")
         
         # Получаем промпты для генерации ответа
+        self.pipeline_logger.log_detail("Формируем промпты для генерации ответа")
         prompts = self._get_prompts(question, items_data, **kwargs)
+        
+        # Логируем полные промпты в детальном режиме
+        self.pipeline_logger.log_prompt_details(
+            prompt_type="answer_generation",
+            system_prompt=prompts['system'],
+            user_prompt=prompts['user']
+        )
         
         try:
             # Генерируем ответ с помощью LLM
+            self.pipeline_logger.log_detail("Отправляем запрос к LLM для генерации ответа")
             generated_text = self.llm_client.generate_completion(
                 system_prompt=prompts['system'],
                 user_prompt=prompts['user'],
                 temperature=0.2  # Немного креативности для более человечного ответа
             )
             
-            logger.info(f"Сгенерирован ответ длиной {len(generated_text) if generated_text else 0} символов")
+            # Логируем результат генерации
+            text_length = len(generated_text) if generated_text else 0
+            self.pipeline_logger.log_detail(f"LLM сгенерировал ответ длиной {text_length} символов")
+            
+            # Логируем полный ответ LLM в детальном режиме
+            self.pipeline_logger.log_prompt_details(
+                prompt_type="answer_generation",
+                system_prompt="",  # Пустые, так как уже залогированы выше
+                user_prompt="",
+                response=generated_text
+            )
             
             # Формируем модель ответа
             answer = Answer(
@@ -105,12 +135,14 @@ class BaseAnswerGeneratorService(ABC):
                 category=kwargs.get('category')
             )
             
+            self.pipeline_logger.log_detail("Ответ успешно сформирован")
             return answer
             
         except Exception as e:
-            logger.error(f"Ошибка при генерации ответа: {e}")
+            self.pipeline_logger.log_detail(f"Ошибка при генерации ответа: {e}", "ERROR")
             
             # В случае ошибки возвращаем базовый ответ
+            self.pipeline_logger.log_detail("Генерируем fallback ответ")
             fallback_text = self._generate_fallback_text(question, items, **kwargs)
             
             return Answer(

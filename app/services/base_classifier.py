@@ -1,11 +1,11 @@
 # app/services/base_classifier.py
 
 import pandas as pd
-from typing import Dict, List, Tuple, Type, get_origin, get_args
+from typing import Dict, List, Tuple, Type
 from abc import ABC, abstractmethod
 from pydantic import BaseModel, Field, create_model
 from app.adapters.llm_client import LLMClient
-from app.utils.logging import setup_logger
+from app.utils.logging import setup_logger, get_pipeline_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
@@ -25,6 +25,7 @@ class BaseClassifierService(ABC):
         """
         self.llm_client = llm_client
         self.items_list: List[str] = []
+        self.pipeline_logger = get_pipeline_logger(f"{self.__class__.__name__}")
         logger.info(f"Инициализирован {self.__class__.__name__}")
     
     @abstractmethod
@@ -115,20 +116,32 @@ class BaseClassifierService(ABC):
         :param question: Вопрос пользователя
         :return: Наиболее релевантный элемент
         """
-        logger.info(f"Классификация запроса: '{question}'")
+        self.pipeline_logger.log_detail(f"Начинаем классификацию запроса: '{question}'")
         
         if not self.items_list:
-            logger.warning("Список элементов пуст, невозможно классифицировать запрос")
+            self.pipeline_logger.log_detail("Список элементов пуст, невозможно классифицировать запрос", "WARNING")
             return ""
         
+        self.pipeline_logger.log_detail(f"Доступно элементов для классификации: {len(self.items_list)}")
+        
         # Создаем динамическую модель для текущего списка элементов
+        self.pipeline_logger.log_detail("Создаем динамическую модель классификации")
         classification_model = self._create_dynamic_classification_model(self.items_list)
         
         # Получаем промпты для классификации
+        self.pipeline_logger.log_detail("Формируем промпты для классификации")
         prompts = self._build_classification_prompts(question)
+        
+        # Логируем полные промпты в детальном режиме
+        self.pipeline_logger.log_prompt_details(
+            prompt_type="classification",
+            system_prompt=prompts['system'],
+            user_prompt=prompts['user']
+        )
         
         try:
             # Вызываем API для структурированного ответа
+            self.pipeline_logger.log_detail("Отправляем запрос к LLM для классификации")
             result = self.llm_client.generate_structured_completion(
                 system_prompt=prompts['system'],
                 user_prompt=prompts['user'],
@@ -138,23 +151,33 @@ class BaseClassifierService(ABC):
             
             if result and hasattr(result, 'top_matches'):
                 top_matches = result.top_matches
-                logger.info(f"Рассуждение модели: {result.reasoning}")
+                
+                # Логируем результат классификации
+                self.pipeline_logger.log_detail(f"Рассуждение модели: {result.reasoning}")
                 
                 # Логируем все результаты
                 for i, match in enumerate(top_matches, 1):
-                    logger.info(f"Вариант {i}: {match.item} (оценка: {match.score})")
+                    self.pipeline_logger.log_detail(f"Вариант {i}: {match.item} (оценка: {match.score})")
+                
+                # Логируем полный ответ LLM в детальном режиме
+                self.pipeline_logger.log_prompt_details(
+                    prompt_type="classification",
+                    system_prompt="",  # Пустые, так как уже залогированы выше
+                    user_prompt="",
+                    response=str(result)
+                )
                 
                 # Возвращаем элемент с наивысшей оценкой
                 if top_matches:
                     best_match = max(top_matches, key=lambda x: x.score)
-                    logger.info(f"Выбран элемент: {best_match.item} с оценкой {best_match.score}")
+                    self.pipeline_logger.log_detail(f"Выбран лучший элемент: '{best_match.item}' с оценкой {best_match.score}")
                     return best_match.item
             
-            logger.warning("Модель не вернула структурированный ответ")
+            self.pipeline_logger.log_detail("Модель не вернула структурированный ответ", "WARNING")
             return ""
                 
         except Exception as e:
-            logger.error(f"Ошибка при классификации запроса: {e}")
+            self.pipeline_logger.log_detail(f"Ошибка при классификации запроса: {e}", "ERROR")
             return ""
     
     def filter_items(self, df: pd.DataFrame, item_value: str) -> Tuple[pd.DataFrame, Dict[int, float]]:
