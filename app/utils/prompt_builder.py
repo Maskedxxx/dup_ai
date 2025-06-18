@@ -22,31 +22,6 @@ class PromptBuilder:
     """
     
     @staticmethod
-    def _log_prompts(method_name: str, prompts: Dict[str, str], context: Dict[str, Any] = None):
-        """
-        Логирует промпты если включен соответствующий флаг.
-        
-        :param method_name: Название метода
-        :param prompts: Словарь с промптами
-        :param context: Дополнительный контекст
-        """
-        if not app_settings.log_prompts:
-            return
-            
-        logger.info(f"=== {method_name} ===")
-        
-        if context:
-            logger.info(f"Контекст: {context}")
-        
-        logger.info("--- SYSTEM PROMPT ---")
-        logger.info(prompts.get('system', ''))
-        
-        logger.info("--- USER PROMPT ---")
-        logger.info(prompts.get('user', ''))
-        
-        logger.info(f"=== END {method_name} ===")
-    
-    @staticmethod
     def build_classification_prompt(
         question: str, 
         items: List[str], 
@@ -105,17 +80,6 @@ class PromptBuilder:
             'user': user_prompt
         }
         
-        # Логируем промпты
-        PromptBuilder._log_prompts(
-            "build_classification_prompt",
-            prompts,
-            {
-                'question': question,
-                'item_type': item_type,
-                'items_count': len(items)
-            }
-        )
-        
         return prompts
     
     @staticmethod
@@ -156,7 +120,7 @@ class PromptBuilder:
         4. Включать рекомендации и выводы при необходимости
         
         Не включай в ответ информацию, которой нет в предоставленных данных.
-        Если вы считаете что найденные документы не имеют отношение к вопросу и не содержат релевантную информацию для отета, то ответьте пользователю: "Извините, я затрудняюсь ответить на ваш вопрос, попробуйте позже"
+        Если вы считаете что найденные документы не имеют отношение к вопросу и не содержат релевантную информацию для отета, то ответьте пользователю одним предложением: "Извините, я затрудняюсь ответить на ваш вопрос, попробуйте позже". Или дайте развернутый ответ по инструкцийм выше.
         """
         
         # Форматируем документы для промпта
@@ -210,18 +174,7 @@ class PromptBuilder:
             'user': user_prompt
         }
         
-        # Логируем промпты
-        PromptBuilder._log_prompts(
-            "build_answer_prompt",
-            prompts,
-            {
-                'question': question,
-                'entity_type': entity_type,
-                'documents_count': len(documents),
-                'has_additional_context': bool(additional_context)
-            }
-        )
-        
+        # Логирование теперь происходит в PipelineLogger, убираем дублирование
         return prompts
     
     # Обратная совместимость - старые методы теперь используют новые универсальные

@@ -19,7 +19,6 @@ class AppSettings(BaseAppSettings):
     host: str
     port: int
     reload: bool
-    log_prompts: bool
 
 class ContractorSettings(BaseAppSettings):
     """Настройки для подрядчиков."""
