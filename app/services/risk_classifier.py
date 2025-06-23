@@ -2,6 +2,7 @@
 
 from app.services.base_classifier import BaseClassifierService
 from app.utils.logging import setup_logger
+from app.adapters.llm_client import LLMClient
 
 # Настройка логгера
 logger = setup_logger(__name__)
@@ -10,21 +11,28 @@ logger = setup_logger(__name__)
 class RiskClassifierService(BaseClassifierService):
     """
     Сервис для классификации запросов о рисках.
+    Использует единую конфигурацию классификации.
     """
     
-    def get_column_name(self) -> str:
+    def __init__(self, llm_client: LLMClient):
         """
-        Возвращает название колонки для извлечения проектов.
+        Инициализация сервиса классификации рисков.
         
-        :return: Название колонки 'project_name'
+        :param llm_client: Клиент для взаимодействия с LLM
+        """
+        super().__init__(llm_client, entity_type="RISK")
+    
+    def _get_column_name_fallback(self) -> str:
+        """
+        Fallback метод для получения имени колонки.
+        Используется если конфигурация не загружена.
         """
         return 'project_name'
     
-    def get_item_type(self) -> str:
+    def _get_item_type_fallback(self) -> str:
         """
-        Возвращает тип элементов для промптов.
-        
-        :return: Тип элементов 'проект'
+        Fallback метод для получения типа элементов.
+        Используется если конфигурация не загружена.
         """
         return 'проект'
     

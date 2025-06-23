@@ -2,6 +2,7 @@
 
 from app.services.base_classifier import BaseClassifierService
 from app.utils.logging import setup_logger
+from app.adapters.llm_client import LLMClient
 
 # Настройка логгера
 logger = setup_logger(__name__)
@@ -10,23 +11,30 @@ logger = setup_logger(__name__)
 class ContractorClassifierService(BaseClassifierService):
     """
     Сервис для классификации запросов о подрядчиках.
+    Использует единую конфигурацию классификации.
     """
     
-    def get_column_name(self) -> str:
+    def __init__(self, llm_client: LLMClient):
         """
-        Возвращает название колонки для извлечения видов работ.
+        Инициализация сервиса классификации подрядчиков.
         
-        :return: Название колонки 'work_types'
+        :param llm_client: Клиент для взаимодействия с LLM
+        """
+        super().__init__(llm_client, entity_type="CONTRACTOR")
+    
+    def _get_column_name_fallback(self) -> str:
+        """
+        Fallback метод для получения имени колонки.
+        Используется если конфигурация не загружена.
         """
         return 'work_types'
     
-    def get_item_type(self) -> str:
+    def _get_item_type_fallback(self) -> str:
         """
-        Возвращает тип элементов для промптов.
-        
-        :return: Тип элементов 'проект'
+        Fallback метод для получения типа элементов.
+        Используется если конфигурация не загружена.
         """
-        return 'проект'
+        return 'вид работ'
     
     # Специфичные методы для контракторов
     def load_work_types(self, df):

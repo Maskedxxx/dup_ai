@@ -2,7 +2,8 @@
 
 from pydantic_settings import BaseSettings
 from pydantic import ConfigDict
-from typing import Dict, Type, Optional, Any
+from typing import Dict, Type, Optional, Any, List
+from enum import Enum
 
 class BaseAppSettings(BaseSettings):
     model_config = ConfigDict(
@@ -120,3 +121,69 @@ class Container:
         self._factories.clear()
 
 container = Container()
+
+# Конфигурация для классификации
+class ClassificationConfig:
+    """Конфигурация для классификации различных типов сущностей."""
+    
+    # Настройки для подрядчиков
+    CONTRACTOR = {
+        "column_name": "work_types",
+        "item_type": "вид работ",
+        "description": "Классификация по видам работ подрядчиков"
+    }
+    
+    # Настройки для рисков
+    RISK = {
+        "column_name": "project_name", 
+        "item_type": "проект",
+        "description": "Классификация рисков по названиям проектов"
+    }
+    
+    # Настройки для ошибок
+    ERROR = {
+        "column_name": "project_name",
+        "item_type": "проект", 
+        "description": "Классификация ошибок по проектам"
+    }
+    
+    # Настройки для процессов
+    PROCESS = {
+        "column_name": "process_name",
+        "item_type": "процесс",
+        "description": "Классификация по бизнес-процессам"
+    }
+    
+    @classmethod
+    def get_config(cls, entity_type: str) -> Dict[str, str]:
+        """
+        Получает конфигурацию классификации для указанного типа сущности.
+        
+        :param entity_type: Тип сущности (CONTRACTOR, RISK, ERROR, PROCESS)
+        :return: Словарь с настройками классификации
+        """
+        config_map = {
+            "CONTRACTOR": cls.CONTRACTOR,
+            "RISK": cls.RISK, 
+            "ERROR": cls.ERROR,
+            "PROCESS": cls.PROCESS
+        }
+        
+        return config_map.get(entity_type.upper(), {})
+    
+    @classmethod
+    def get_all_configs(cls) -> Dict[str, Dict[str, str]]:
+        """
+        Возвращает все доступные конфигурации классификации.
+        
+        :return: Словарь всех конфигураций
+        """
+        return {
+            "CONTRACTOR": cls.CONTRACTOR,
+            "RISK": cls.RISK,
+            "ERROR": cls.ERROR, 
+            "PROCESS": cls.PROCESS
+        }
+
+# Глобальный экземпляр конфигурации классификации
+classification_config = ClassificationConfig()
