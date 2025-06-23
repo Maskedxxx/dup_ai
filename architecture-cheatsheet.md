@@ -14,7 +14,7 @@
 
 ### 3. Service Layer (Business Logic)
 - **Normalization** - очистка данных
-- **Classifier** - классификация через LLM с динамическими Literal типами
+- **Classifier** - классификация через LLM с динамическими Literal типами (используют единую конфигурацию)
 - **AnswerGenerator** - генерация ответов
 
 ### 4. Domain Layer (Core)
@@ -25,6 +25,41 @@
 ### 5. Adapter Layer (Infrastructure)
 - `excel_loader.py` - работа с Excel файлами
 - `llm_client.py` - интеграция с LLM
+
+## Единая конфигурация классификации
+
+### ClassificationConfig
+Центральная конфигурация для управления логикой классификации всех типов сущностей:
+
+```python
+# Структура конфигурации
+class ClassificationConfig:
+    CONTRACTOR = {
+        "column_name": "work_types",    # Колонка для классификации
+        "item_type": "вид работ",       # Тип для LLM промптов
+        "description": "..."            # Описание
+    }
+    
+    RISK = {"column_name": "project_name", "item_type": "проект", ...}
+    ERROR = {"column_name": "project_name", "item_type": "проект", ...}  
+    PROCESS = {"column_name": "process_name", "item_type": "процесс", ...}
+
+# Использование в классификаторах
+classifier = RiskClassifierService(llm_client)
+# Автоматически использует RISK.column_name = "project_name"
+# Автоматически использует RISK.item_type = "проект"
+
+# Изменение конфигурации
+ClassificationConfig.RISK["column_name"] = "risk_category"
+ClassificationConfig.RISK["item_type"] = "категория риска"
+```
+
+### Принцип работы
+1. Базовый классификатор получает `entity_type` в конструкторе
+2. Загружает соответствующую конфигурацию из `ClassificationConfig`  
+3. Использует `column_name` для извлечения уникальных значений
+4. Использует `item_type` в промптах для LLM
+5. Поддерживает fallback методы для совместимости
 
 ## Dependency Injection
 
