@@ -17,36 +17,61 @@ class BaseClassifierService(ABC):
     Предоставляет общую логику для классификации запросов.
     """
     
-    def __init__(self, llm_client: LLMClient):
+    def __init__(self, llm_client: LLMClient, entity_type: str = None):
         """
         Инициализация сервиса классификации.
         
         :param llm_client: Клиент для взаимодействия с LLM
+        :param entity_type: Тип сущности для получения конфигурации из ClassificationConfig
         """
         self.llm_client = llm_client
         self.items_list: List[str] = []
         self.pipeline_logger = get_pipeline_logger(f"{self.__class__.__name__}")
+        
+        # Загружаем конфигурацию если указан тип сущности
+        self._classification_config = {}
+        if entity_type:
+            from app.config import classification_config
+            self._classification_config = classification_config.get_config(entity_type)
+            logger.info(f"Загружена конфигурация для типа '{entity_type}': {self._classification_config}")
+        
         logger.info(f"Инициализирован {self.__class__.__name__}")
     
-    @abstractmethod
     def get_column_name(self) -> str:
         """
         Возвращает название колонки для извлечения элементов.
-        Должен быть реализован в наследниках.
+        Использует конфигурацию если доступна, иначе абстрактный метод.
         
         :return: Название колонки в DataFrame
         """
-        pass
+        if self._classification_config and 'column_name' in self._classification_config:
+            return self._classification_config['column_name']
+        return self._get_column_name_fallback()
     
-    @abstractmethod
     def get_item_type(self) -> str:
         """
         Возвращает тип элементов для использования в промптах.
-        Должен быть реализован в наследниках.
+        Использует конфигурацию если доступна, иначе абстрактный метод.
         
         :return: Тип элементов (например, "проект", "процесс")
         """
-        pass
+        if self._classification_config and 'item_type' in self._classification_config:
+            return self._classification_config['item_type']
+        return self._get_item_type_fallback()
+    
+    def _get_column_name_fallback(self) -> str:
+        """
+        Fallback метод для получения имени колонки.
+        Должен быть переопределен в наследниках, если не используется конфиг.
+        """
+        raise NotImplementedError("Необходимо переопределить _get_column_name_fallback или передать entity_type в конструктор")
+    
+    def _get_item_type_fallback(self) -> str:
+        """
+        Fallback метод для получения типа элементов.
+        Должен быть переопределен в наследниках, если не используется конфиг.
+        """
+        raise NotImplementedError("Необходимо переопределить _get_item_type_fallback или передать entity_type в конструктор")
     
     def _create_dynamic_classification_model(self, items: List[str]) -> Type[BaseModel]:
         """
