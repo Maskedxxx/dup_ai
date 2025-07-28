@@ -100,7 +100,7 @@ class LLMClient:
             
             response = completion.choices[0].message
             if response.parsed:
-                logger.debug(f"Получен структурированный ответ от LLM")
+                logger.debug("Получен структурированный ответ от LLM")
                 return response.parsed
             
             logger.warning("Модель не вернула структурированный ответ")
@@ -109,3 +109,55 @@ class LLMClient:
         except Exception as e:
             logger.error(f"Ошибка при получении структурированного ответа от LLM: {e}")
             return None
+    
+    def chat_completion_with_tools(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        tools: List[Dict[str, Any]],
+        tool_choice: Optional[Dict[str, Any]] = None,
+        temperature: float = 0.0
+    ):
+        """
+        Генерирует ответ с использованием OpenAI function calling.
+        
+        :param system_prompt: Системный промпт
+        :param user_prompt: Пользовательский промпт
+        :param tools: Список доступных инструментов
+        :param tool_choice: Принуждение к выбору конкретного инструмента
+        :param temperature: Температура (степень креативности)
+        :return: Ответ от OpenAI API
+        """
+        if not self.client:
+            logger.error("LLM клиент не инициализирован")
+            return None
+            
+        try:
+            completion = self.client.chat.completions.create(
+                model=self.model_name,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                tools=tools,
+                tool_choice=tool_choice,
+                temperature=temperature,
+            )
+            
+            logger.debug("Получен ответ с tool calling от LLM")
+            return completion
+                
+        except Exception as e:
+            logger.error(f"Ошибка при выполнении tool calling: {e}")
+            return None
+    
+    def chat_completion(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        temperature: float = 0.0
+    ) -> str:
+        """
+        Синоним для generate_completion для совместимости.
+        """
+        return self.generate_completion(system_prompt, user_prompt, temperature)
