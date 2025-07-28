@@ -10,6 +10,8 @@ from app.adapters.excel_loader import ExcelLoader
 from app.services.risk_normalization import RiskNormalizationService
 from app.services.risk_classifier import RiskClassifierService
 from app.services.risk_answer_generator import RiskAnswerGeneratorService
+from app.tools.tool_selector import SimpleToolSelector
+from app.tools.keyword_search_tool import filter_risks_by_keywords
 from app.utils.logging import setup_logger
 
 # Настройка логгера
@@ -26,7 +28,8 @@ class RisksPipeline(BasePipeline):
         excel_loader: ExcelLoader,
         normalization_service: RiskNormalizationService,
         classifier_service: RiskClassifierService,
-        answer_generator: RiskAnswerGeneratorService
+        answer_generator: RiskAnswerGeneratorService,
+        tool_selector: SimpleToolSelector
     ):
         """
         Инициализация пайплайна рисков.
@@ -38,6 +41,7 @@ class RisksPipeline(BasePipeline):
             answer_generator=answer_generator,
             button_type=ButtonType.RISKS
         )
+        self.tool_selector = tool_selector
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Risk:
         """
@@ -95,9 +99,34 @@ class RisksPipeline(BasePipeline):
     
     def _filter_data(self, df: pd.DataFrame, item_value: str):
         """
-        Фильтрует риски по проекту.
+        Фильтрует риски по проекту + intelligent filtering.
         """
-        return self.classifier_service.filter_risks(df, item_value)
+        # Сначала фильтруем по проекту (стандартная логика)
+        project_filtered_df = self.classifier_service.filter_risks(df, item_value)
+        
+        # Потом применяем intelligent filtering
+        try:
+            # Получаем вопрос из атрибута, установленного в process()
+            question = getattr(self, '_current_question', '')
+            
+            if question and self.tool_selector:
+                # Извлекаем ключевые слова через LLM
+                keywords = self.tool_selector.extract_keywords(question)
+                
+                if keywords:
+                    # Применяем дополнительную фильтрацию
+                    smart_filtered_df = filter_risks_by_keywords(project_filtered_df, keywords, top_n=3)
+                    
+                    self.pipeline_logger.log_detail(f"Intelligent filtering: {len(project_filtered_df)} → {len(smart_filtered_df)} записей по ключевым словам: {keywords}")
+                    
+                    return smart_filtered_df, {}
+            
+            # Fallback: возвращаем результат фильтрации по проекту
+            return project_filtered_df, {}
+            
+        except Exception as e:
+            self.pipeline_logger.log_detail(f"Ошибка intelligent filtering: {e}", "WARNING")
+            return project_filtered_df, {}
     
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         """
@@ -125,4 +154,12 @@ class RisksPipeline(BasePipeline):
         :param risk_category: Категория риска
         :return: Модель Answer
         """
-        return super().process(question, risk_category=risk_category)
+        # Сохраняем вопрос для использования в _filter_data
+        self._current_question = question
+        
+        try:
+            return super().process(question, risk_category=risk_category)
+        finally:
+            # Очищаем после использования
+            if hasattr(self, '_current_question'):
+                delattr(self, '_current_question')
