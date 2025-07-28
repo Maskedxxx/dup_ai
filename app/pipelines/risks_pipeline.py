@@ -101,15 +101,15 @@ class RisksPipeline(BasePipeline):
         """
         Фильтрует риски по проекту + intelligent filtering.
         """
-        # Сначала фильтруем по проекту (стандартная логика)
-        project_filtered_df = self.classifier_service.filter_risks(df, item_value)
+        # Сначала фильтруем по проекту (стандартная логика) - получаем tuple
+        project_filtered_df, project_scores = self.classifier_service.filter_risks(df, item_value)
         
         # Потом применяем intelligent filtering
         try:
             # Получаем вопрос из атрибута, установленного в process()
             question = getattr(self, '_current_question', '')
             
-            if question and self.tool_selector:
+            if question and self.tool_selector and not project_filtered_df.empty:
                 # Извлекаем ключевые слова через LLM
                 keywords = self.tool_selector.extract_keywords(question)
                 
@@ -119,14 +119,22 @@ class RisksPipeline(BasePipeline):
                     
                     self.pipeline_logger.log_detail(f"Intelligent filtering: {len(project_filtered_df)} → {len(smart_filtered_df)} записей по ключевым словам: {keywords}")
                     
-                    return smart_filtered_df, {}
+                    # Создаем новые scores для отфильтрованных записей
+                    smart_scores = {}
+                    for idx, row in smart_filtered_df.iterrows():
+                        # Используем keyword_relevance_score если есть, иначе исходный score
+                        keyword_score = row.get('keyword_relevance_score', 0.0)
+                        original_score = project_scores.get(idx, 1.0)
+                        smart_scores[idx] = max(keyword_score, original_score)
+                    
+                    return smart_filtered_df, smart_scores
             
             # Fallback: возвращаем результат фильтрации по проекту
-            return project_filtered_df, {}
+            return project_filtered_df, project_scores
             
         except Exception as e:
             self.pipeline_logger.log_detail(f"Ошибка intelligent filtering: {e}", "WARNING")
-            return project_filtered_df, {}
+            return project_filtered_df, project_scores
     
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         """
