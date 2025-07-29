@@ -22,7 +22,7 @@ from app.pipelines.processes_pipeline import ProcessesPipeline
 from app.services.process_normalization import ProcessNormalizationService
 from app.services.process_classifier import ProcessClassifierService
 from app.services.process_answer_generator import ProcessAnswerGeneratorService
-from app.tools.tool_selector import SimpleToolSelector
+from app.tools.tool_executor import ToolExecutor
 from app.config import container
 from app.utils.logging import setup_logger
 
@@ -102,10 +102,10 @@ def init_container():
         lambda: ProcessAnswerGeneratorService(container.get(LLMClient))
     )
     
-    # Регистрируем фабрику для tool selector
+    # Регистрируем фабрику для tool executor
     container.register_factory(
-        SimpleToolSelector,
-        lambda: SimpleToolSelector(container.get(LLMClient))
+        ToolExecutor,
+        lambda: ToolExecutor(container.get(LLMClient))
     )
     
     logger.info("Контейнер с зависимостями инициализирован")
@@ -138,7 +138,7 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             normalization_service=container.get(RiskNormalizationService),
             classifier_service=container.get(RiskClassifierService),
             answer_generator=container.get(RiskAnswerGeneratorService),
-            tool_selector=container.get(SimpleToolSelector)
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.ERRORS: lambda: ErrorsPipeline(

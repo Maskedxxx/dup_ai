@@ -1,73 +1,86 @@
 # app/tools/keyword_search_tool.py
 
 import pandas as pd
-from typing import List
+from typing import List, Dict, Any, Tuple
+from app.tools.base_tool import BaseTool, calculate_relevance_score
 from app.utils.logging import setup_logger
 
 # Настройка логгера
 logger = setup_logger(__name__)
 
 
-def filter_risks_by_keywords(df: pd.DataFrame, keywords: List[str], top_n: int = 3) -> pd.DataFrame:
+class KeywordSearchTool(BaseTool):
     """
-    Простая функция для фильтрации рисков по ключевым словам.
-    
-    :param df: DataFrame с рисками
-    :param keywords: Список ключевых слов для поиска  
-    :param top_n: Количество топ записей для возврата
-    :return: Отфильтрованный DataFrame
+    Инструмент для фильтрации DataFrame по ключевым словам в указанной колонке.
     """
-    if df.empty or not keywords:
-        logger.warning("Пустой DataFrame или список ключевых слов")
-        return df.head(top_n)
     
-    if 'risk_text' not in df.columns:
-        logger.warning("Колонка 'risk_text' не найдена в DataFrame")
-        return df.head(top_n)
-    
-    logger.info(f"Поиск по ключевым словам: {keywords}")
-    
-    # Вычисляем релевантность для каждой строки
-    df_with_scores = df.copy()
-    df_with_scores['keyword_relevance_score'] = df_with_scores['risk_text'].apply(
-        lambda text: _calculate_relevance_score(text, keywords)
-    )
-    
-    # Фильтруем строки с релевантностью > 0
-    filtered_df = df_with_scores[df_with_scores['keyword_relevance_score'] > 0]
-    
-    # Fallback: если ничего не найдено, возвращаем все
-    if filtered_df.empty:
-        logger.warning("Не найдено совпадений по ключевым словам. Возвращаем все записи.")
-        return df.head(top_n)
-    
-    # Сортируем по релевантности и берем топ N
-    result_df = filtered_df.nlargest(top_n, 'keyword_relevance_score')
-    
-    logger.info(f"Найдено {len(filtered_df)} совпадений, возвращаем топ {min(top_n, len(result_df))}")
-    
-    return result_df
+    def get_schema(self) -> Dict[str, Any]:
+        """
+        Возвращает схему для поиска по ключевым словам.
+        Схема теперь более общая и включает параметр 'column_to_search'.
+        """
+        return {
+            "type": "function",
+            "function": {
+                "name": "search_by_keywords",
+                "description": "Ищет записи по ключевым словам в указанной текстовой колонке.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "keywords": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "Список ключевых слов для поиска."
+                        },
+                        "column_to_search": {
+                            "type": "string",
+                            "description": "Название колонки в DataFrame, по которой будет производиться поиск."
+                        }
+                    },
+                    "required": ["keywords", "column_to_search"],
+                    "additionalProperties": False
+                },
+                "strict": True
+            }
+        }
 
-
-def _calculate_relevance_score(text: str, keywords: List[str]) -> float:
-    """
-    Вычисляет оценку релевантности текста на основе ключевых слов.
-    Использует частичные совпадения.
-    
-    :param text: Текст для анализа
-    :param keywords: Список ключевых слов
-    :return: Оценка релевантности (0.0 - 1.0)
-    """
-    if not text or not keywords:
-        return 0.0
-    
-    text_lower = str(text).lower()
-    matches = 0
-    
-    for keyword in keywords:
-        keyword_lower = keyword.lower().strip()
-        if keyword_lower and keyword_lower in text_lower:
-            matches += 1
-    
-    # Нормализуем по количеству ключевых слов
-    return matches / len(keywords) if keywords else 0.0
+    def execute(self, df: pd.DataFrame, keywords: List[str], column_to_search: str, top_n: int = 3, **kwargs) -> Tuple[pd.DataFrame, Dict[int, float]]:
+        """
+        Выполняет фильтрацию DataFrame по ключевым словам.
+        
+        :param df: DataFrame для фильтрации.
+        :param keywords: Список ключевых слов.
+        :param column_to_search: Колонка для поиска.
+        :param top_n: Количество топ записей для возврата.
+        :return: Кортеж (Отфильтрованный DataFrame, Словарь с оценками релевантности).
+        """
+        if df.empty or not keywords:
+            logger.warning("Пустой DataFrame или список ключевых слов для KeywordSearchTool.")
+            return df.head(top_n), {}
+        
+        if column_to_search not in df.columns:
+            logger.warning(f"Колонка '{column_to_search}' не найдена в DataFrame.")
+            return df.head(top_n), {}
+        
+        logger.info(f"KeywordSearchTool: Поиск по ключевым словам '{keywords}' в колонке '{column_to_search}'.")
+        
+        df_with_scores = df.copy()
+        df_with_scores['keyword_relevance_score'] = df_with_scores[column_to_search].apply(
+            lambda text: calculate_relevance_score(text, keywords)
+        )
+        
+        filtered_df = df_with_scores[df_with_scores['keyword_relevance_score'] > 0]
+        
+        if filtered_df.empty:
+            logger.warning("KeywordSearchTool: Не найдено совпадений. Возвращаем топ-N из исходных данных.")
+            # Возвращаем исходный df, но с пустыми скорами
+            return df.head(top_n), {}
+        
+        result_df = filtered_df.nlargest(top_n, 'keyword_relevance_score')
+        
+        # Создаем словарь с оценками релевантности
+        scores = pd.Series(result_df.keyword_relevance_score, index=result_df.index).to_dict()
+        
+        logger.info(f"KeywordSearchTool: Найдено {len(filtered_df)} совпадений, возвращаем топ {len(result_df)}.")
+        
+        return result_df, scores
