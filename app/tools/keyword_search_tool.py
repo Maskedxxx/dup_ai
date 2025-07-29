@@ -11,76 +11,72 @@ logger = setup_logger(__name__)
 
 class KeywordSearchTool(BaseTool):
     """
-    Инструмент для фильтрации DataFrame по ключевым словам в указанной колонке.
+    Инструмент для фильтрации DataFrame по ключевым словам в колонке 'risk_text'.
     """
-    
+
     def get_schema(self) -> Dict[str, Any]:
         """
         Возвращает схему для поиска по ключевым словам.
-        Схема теперь более общая и включает параметр 'column_to_search'.
         """
         return {
             "type": "function",
             "function": {
                 "name": "search_by_keywords",
-                "description": "Ищет записи по ключевым словам в указанной текстовой колонке.",
+                "description": "Ищет риски по ключевым словам в их описании (поле risk_text).",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "keywords": {
                             "type": "array",
                             "items": {"type": "string"},
-                            "description": "Список ключевых слов для поиска."
-                        },
-                        "column_to_search": {
-                            "type": "string",
-                            "description": "Название колонки в DataFrame, по которой будет производиться поиск."
+                            "description": "Список ключевых слов для поиска в описании риска."
                         }
                     },
-                    "required": ["keywords", "column_to_search"],
+                    "required": ["keywords"],
                     "additionalProperties": False
                 },
                 "strict": True
             }
         }
 
-    def execute(self, df: pd.DataFrame, keywords: List[str], column_to_search: str, top_n: int = 3, **kwargs) -> Tuple[pd.DataFrame, Dict[int, float]]:
+    def execute(self, df: pd.DataFrame, keywords: List[str], top_n: int = 3, **kwargs) -> Tuple[pd.DataFrame, Dict[int, float]]:
         """
-        Выполняет фильтрацию DataFrame по ключевым словам.
-        
+        Выполняет фильтрацию DataFrame по ключевым словам в колонке 'risk_text'.
+
         :param df: DataFrame для фильтрации.
         :param keywords: Список ключевых слов.
-        :param column_to_search: Колонка для поиска.
         :param top_n: Количество топ записей для возврата.
         :return: Кортеж (Отфильтрованный DataFrame, Словарь с оценками релевантности).
         """
         if df.empty or not keywords:
             logger.warning("Пустой DataFrame или список ключевых слов для KeywordSearchTool.")
             return df.head(top_n), {}
-        
+
+        column_to_search = "risk_text"
+
         if column_to_search not in df.columns:
-            logger.warning(f"Колонка '{column_to_search}' не найдена в DataFrame.")
-            return df.head(top_n), {}
-        
+            logger.error(f"Критическая ошибка: колонка '{column_to_search}' не найдена в DataFrame.")
+            # В этом случае мы не должны возвращать данные, так как это ошибка конфигурации
+            return pd.DataFrame(), {}
+
         logger.info(f"KeywordSearchTool: Поиск по ключевым словам '{keywords}' в колонке '{column_to_search}'.")
-        
+
         df_with_scores = df.copy()
         df_with_scores['keyword_relevance_score'] = df_with_scores[column_to_search].apply(
-            lambda text: calculate_relevance_score(text, keywords)
+            lambda text: calculate_relevance_score(str(text), keywords)
         )
-        
+
         filtered_df = df_with_scores[df_with_scores['keyword_relevance_score'] > 0]
-        
+
         if filtered_df.empty:
             logger.warning("KeywordSearchTool: Не найдено совпадений. Возвращаем топ-N из исходных данных.")
-            # Возвращаем исходный df, но с пустыми скорами
             return df.head(top_n), {}
-        
+
         result_df = filtered_df.nlargest(top_n, 'keyword_relevance_score')
-        
+
         # Создаем словарь с оценками релевантности
         scores = pd.Series(result_df.keyword_relevance_score, index=result_df.index).to_dict()
-        
+
         logger.info(f"KeywordSearchTool: Найдено {len(filtered_df)} совпадений, возвращаем топ {len(result_df)}.")
-        
+
         return result_df, scores
