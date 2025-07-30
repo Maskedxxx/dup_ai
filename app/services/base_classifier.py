@@ -191,9 +191,13 @@ class BaseClassifierService(ABC):
         self.pipeline_logger.log_detail("Создаем динамическую модель классификации")
         classification_model = self._create_dynamic_classification_model(self.items_list)
         
+        # Применяем предобработку с хештег-разделителями для списка в промпте
+        self.pipeline_logger.log_detail("Применяем хештег-разделители к списку элементов для промпта")
+        processed_items_for_prompt = self._preprocess_items_with_hashtags(self.items_list)
+
         # Получаем промпты для классификации
         self.pipeline_logger.log_detail("Формируем промпты для классификации")
-        prompts = self._build_classification_prompts(question)
+        prompts = self._build_classification_prompts(question, processed_items_for_prompt)
         
         # Логируем полные промпты в детальном режиме
         self.pipeline_logger.log_prompt_details(
@@ -281,18 +285,22 @@ class BaseClassifierService(ABC):
         logger.info(f"Найдено {len(filtered_df)} элементов")
         return filtered_df, scores
     
-    def _build_classification_prompts(self, question: str) -> Dict[str, str]:
+    def _build_classification_prompts(self, question: str, processed_items: List[str] = None) -> Dict[str, str]:
         """
         Строит промпты для классификации запроса.
         
         :param question: Вопрос пользователя
+        :param processed_items: Обработанные элементы с хештег-разделителями (опционально)
         :return: Словарь с системным и пользовательским промптами
         """
         from app.utils.prompt_builder import PromptBuilder
         
+        # Используем обработанные элементы если переданы, иначе исходные
+        items_for_prompt = processed_items if processed_items is not None else self.items_list
+        
         # Используем универсальный метод PromptBuilder
         return PromptBuilder.build_classification_prompt(
             question=question,
-            items=self.items_list,
+            items=items_for_prompt,
             item_type=self.get_item_type()
         )
