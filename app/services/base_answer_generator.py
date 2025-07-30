@@ -96,12 +96,22 @@ class BaseAnswerGeneratorService(ABC):
         # Получаем промпты для генерации ответа
         self.pipeline_logger.log_detail("Формируем промпты для генерации ответа")
         prompts = self._get_prompts(question, items_data, **kwargs)
-        
-        # Логируем полные промпты в детальном режиме
+
+        # Создаем урезанную версию промпта для логирования
+        LOG_LIMIT = 5
+        if len(items_data) > LOG_LIMIT:
+            self.pipeline_logger.log_detail(f"Количество элементов ({len(items_data)}) превышает лимит для логирования ({LOG_LIMIT}). Создаем урезанный лог.")
+            logged_prompts = self._get_prompts(question, items_data[:LOG_LIMIT], **kwargs)
+            # Добавляем примечание, что это не все данные
+            logged_prompts['user'] += f"\n\n... и еще {len(items_data) - LOG_LIMIT} элементов, которые не показаны в этом логе."
+        else:
+            logged_prompts = prompts
+
+        # Логируем урезанные или полные промпты в детальном режиме
         self.pipeline_logger.log_prompt_details(
             prompt_type="answer_generation",
-            system_prompt=prompts['system'],
-            user_prompt=prompts['user']
+            system_prompt=logged_prompts['system'],
+            user_prompt=logged_prompts['user']
         )
         
         try:

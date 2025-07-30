@@ -1,7 +1,7 @@
 # app/tools/keyword_search_tool.py
 
 import pandas as pd
-import pymorphy2
+import pymorphy3
 import re
 from typing import List, Dict, Any, Tuple
 from app.tools.base_tool import BaseTool, calculate_relevance_score
@@ -11,7 +11,7 @@ from app.utils.logging import setup_logger
 logger = setup_logger(__name__)
 
 # Инициализация pymorphy2.MorphAnalyzer один раз для производительности
-morph = pymorphy2.MorphAnalyzer()
+morph = pymorphy3.MorphAnalyzer()
 
 class KeywordSearchTool(BaseTool):
     """

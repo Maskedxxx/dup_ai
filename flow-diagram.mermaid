@@ -7,23 +7,33 @@ graph TD
     C -->|errors| D3[ErrorsPipeline] 
     C -->|processes| D4[ProcessesPipeline]
     
-    D1 --> E[Excel Loader]
-    D2 --> E
-    D3 --> E
-    D4 --> E
+    subgraph Pipeline Steps
+        D1 --> E[1. Excel Loader]
+        D2 --> E
+        D3 --> E
+        D4 --> E
+        
+        E -->|Load data| F[2. Normalization Service]
+        F -->|Clean data| G[3. Classifier Service]
+        
+        G -->|Query LLM| H[LLM Client]
+        H -->|Classification result| I[4. Filter by Project]
+        
+        I --> J(5. Tool Executor)
+        J -->|Get Tool Schemas| K(Tool Registry)
+        K --> J
+        J -->|Query + Schemas| H
+        H -->|Tool Choice| J
+        J -->|Execute| L(Keyword Search Tool)
+        L -->|Filtered Data| M[6. Create Models]
+        M --> N[7. Answer Generator]
+        N -->|Query LLM| H
+    end
     
-    E -->|Load data| F[Normalization Service]
-    F -->|Clean data| G[Classifier Service]
-    
-    G -->|Query LLM| H[LLM Client]
-    H -->|Classification result| I[Filter Data]
-    
-    I --> J[Answer Generator]
-    J -->|Query LLM| H
-    H -->|Generated text| K[Response]
-    
-    K --> L[Client]
+    H -->|Generated text| O[Response]
+    O --> P[Client]
     
     style A fill:#f9f,stroke:#333,stroke-width:2px
-    style L fill:#f9f,stroke:#333,stroke-width:2px
+    style P fill:#f9f,stroke:#333,stroke-width:2px
     style H fill:#bbf,stroke:#333,stroke-width:2px
+    style J fill:#9f9,stroke:#333,stroke-width:2px
