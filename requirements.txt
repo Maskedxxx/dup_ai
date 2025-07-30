@@ -8,3 +8,5 @@ uvicorn==0.34.2
 ollama==0.3.3
 pytest==8.3.5
 pymorphy3==1.2.1
+keybert==0.8.5
+sentence-transformers==3.3.1
