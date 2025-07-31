@@ -61,6 +61,42 @@ class ToolRegistry:
         """
         return [tool.get_schema() for tool in self._tools.values()]
 
+    def get_schemas_by_names(self, names: List[str]) -> List[Dict[str, Any]]:
+        """
+        Возвращает схемы только для инструментов с указанными именами.
+        
+        :param names: Список имен инструментов
+        :return: Список схем для указанных инструментов
+        
+        Пример:
+            registry = ToolRegistry()
+            schemas = registry.get_schemas_by_names(["search_by_keywords", "filter_by_priority"])
+        """
+        if not names:
+            logger.warning("Передан пустой список имен инструментов")
+            return []
+        
+        schemas = []
+        for name in names:
+            tool = self._tools.get(name)
+            if tool:
+                schemas.append(tool.get_schema())
+                logger.debug(f"Добавлена схема для инструмента '{name}'")
+            else:
+                logger.warning(f"Инструмент '{name}' не найден в реестре")
+        
+        logger.info(f"Возвращено {len(schemas)} схем из {len(names)} запрошенных")
+        return schemas
+
+    def get_available_tool_names(self) -> List[str]:
+        """
+        Возвращает список имен всех доступных инструментов.
+        Полезно для отладки и документации.
+        
+        :return: Список имен зарегистрированных инструментов
+        """
+        return list(self._tools.keys())
+
 
 # Создаем единый экземпляр реестра для всего приложения
 tool_registry = ToolRegistry()

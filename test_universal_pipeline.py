@@ -27,7 +27,7 @@ def test_pipeline(button: str, question: str, risk_category: Optional[str] = Non
     :param question: Вопрос пользователя
     :param risk_category: Категория риска (только для button=risks)
     """
-    print(f"🚀 Тестирование пайплайна")
+    print("Тестирование пайплайна")
     print("=" * 80)
     
     try:
@@ -42,25 +42,25 @@ def test_pipeline(button: str, question: str, risk_category: Optional[str] = Non
             risk_category=risk_cat
         )
         
-        print(f"📝 Параметры запроса:")
+        print("📝 Параметры запроса:")
         print(f"   • Кнопка: {request.button.value}")
         print(f"   • Вопрос: {request.question}")
         if request.risk_category:
             print(f"   • Категория риска: {request.risk_category.value}")
         
         # Получаем пайплайн
-        print(f"\n🔧 Создание пайплайна...")
+        print("\n🔧 Создание пайплайна...")
         pipeline = get_pipeline(request.button, request.risk_category)
         print(f"   ✅ Пайплайн создан: {type(pipeline).__name__}")
         
         # Тестируем новую конфигурацию классификации
-        print(f"\n🧪 Проверка конфигурации классификации:")
+        print("\n🧪 Проверка конфигурации классификации:")
         classifier = pipeline.classifier_service
         print(f"   • Колонка для классификации: {classifier.get_column_name()}")
         print(f"   • Тип элемента: {classifier.get_item_type()}")
         
         # Запускаем обработку
-        print(f"\n⚙️ Запуск пайплайна...")
+        print("\n⚙️ Запуск пайплайна...")
         
         if request.button == ButtonType.RISKS:
             result = pipeline.process(request.question, request.risk_category)
@@ -68,24 +68,24 @@ def test_pipeline(button: str, question: str, risk_category: Optional[str] = Non
             result = pipeline.process(request.question)
         
         # Выводим результаты
-        print(f"\n📊 Результаты обработки:")
+        print("\n📊 Результаты обработки:")
         print(f"   • Найдено элементов: {len(result.items)}")
         print(f"   • Общее количество: {result.total_found}")
         
         if hasattr(result, 'category') and result.category:
             print(f"   • Категория: {result.category}")
         
-        print(f"   • Текст ответа:")
+        print("   • Текст ответа:")
         print(f"     {result.text[:300]}{'...' if len(result.text) > 300 else ''}")
         
         if result.items:
-            print(f"\n🎯 Первые 3 найденных элемента:")
+            print("\n🎯 Первые 3 найденных элемента:")
             for i, item in enumerate(result.items[:3], 1):
                 print(f"   {i}. {_format_item(item, request.button)}")
                 if hasattr(item, 'relevance_score') and item.relevance_score:
                     print(f"      Релевантность: {item.relevance_score:.2f}")
         
-        print(f"\n✅ Тестирование успешно завершено!")
+        print("\n✅ Тестирование успешно завершено!")
         
     except Exception as e:
         logger.error(f"Ошибка при тестировании: {e}")
@@ -207,7 +207,7 @@ def main():
             question = sys.argv[2] if len(sys.argv) > 2 else "Тестовый вопрос"
             risk_category = sys.argv[3] if len(sys.argv) > 3 else None
             
-            print(f"\n📋 Режим с аргументами:")
+            print("\n Режим с аргументами:")
             test_pipeline(button, question, risk_category)
         except IndexError:
             print("❌ Недостаточно аргументов. Используйте: python script.py <button> <question> [risk_category]")

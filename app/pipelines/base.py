@@ -79,6 +79,33 @@ class BasePipeline(Pipeline):
         """
         pass
     
+    @abstractmethod
+    def get_tool_names(self) -> List[str]:
+        """
+        Возвращает список имен инструментов, релевантных для этого пайплайна.
+        Каждый пайплайн определяет свой набор инструментов для фильтрации данных.
+        
+        :return: Список имен инструментов
+        
+        Примеры использования:
+        
+        # Базовый набор
+        def get_tool_names(self) -> List[str]:
+            return CommonToolSets.BASIC_SEARCH
+        
+        # Расширенный набор
+        def get_tool_names(self) -> List[str]:
+            return CommonToolSets.RISK_ANALYSIS + ["custom_risk_tool"]
+        
+        # Комбинированный набор
+        def get_tool_names(self) -> List[str]:
+            return CommonToolSets.combine(
+                CommonToolSets.BASIC_SEARCH,
+                ["priority_filter", "date_filter"]
+            )
+        """
+        pass
+    
     def _pre_process_dataframe(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
         """
         Дополнительная обработка DataFrame перед классификацией.

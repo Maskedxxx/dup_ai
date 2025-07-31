@@ -28,18 +28,40 @@ class ToolExecutor:
         self.registry = registry
         self.keybert_service = get_keybert_service()
     
-    def select_and_execute(self, question: str, df: pd.DataFrame, **kwargs) -> Tuple[pd.DataFrame, Dict[int, float]]:
+    def select_and_execute(self, question: str, df: pd.DataFrame, available_tool_names: list = None, **kwargs) -> Tuple[pd.DataFrame, Dict[int, float]]:
         """
         1. Использует KeyBERT для извлечения ключевых слов из вопроса.
-        2. Автоматически выбирает инструмент search_by_keywords.
+        2. Автоматически выбирает инструмент search_by_keywords из доступных инструментов.
         3. Выполняет поиск с извлеченными ключевыми словами.
         
         :param question: Вопрос пользователя.
         :param df: DataFrame для обработки.
+        :param available_tool_names: Список доступных инструментов для пайплайна.
+                                   Если None, используются все зарегистрированные инструменты.
         :param kwargs: Дополнительные аргументы для системного промпта.
         :return: Кортеж (Отфильтрованный DataFrame, Словарь с оценками релевантности).
         """
         try:
+            # Определяем доступные инструменты для этого пайплайна
+            if available_tool_names is None:
+                logger.debug("available_tool_names не указан, используем все зарегистрированные инструменты")
+                available_tools = self.registry.get_available_tool_names()
+            else:
+                available_tools = available_tool_names
+                logger.info(f"Доступные инструменты для пайплайна: {available_tools}")
+            
+            # Проверяем, что есть хотя бы один инструмент
+            if not available_tools:
+                logger.info("Пайплайн не использует инструменты. Возвращаем исходные данные без обработки.")
+                return df, {}
+            
+            # Проверяем, что search_by_keywords доступен
+            tool_name = "search_by_keywords"
+            if tool_name not in available_tools:
+                logger.warning(f"Инструмент '{tool_name}' не доступен для данного пайплайна. Доступные: {available_tools}")
+                logger.info("Возвращаем исходные данные без инструментальной обработки.")
+                return df, {}
+            
             logger.info(f"Извлечение ключевых слов из вопроса: '{question}'")
             
             # Используем KeyBERT для извлечения ключевых слов
@@ -51,8 +73,7 @@ class ToolExecutor:
             
             logger.info(f"KeyBERT извлек ключевые слова: {keywords}")
             
-            # Автоматически выбираем search_by_keywords инструмент
-            tool_name = "search_by_keywords"
+            # Получаем инструмент из реестра
             tool_to_execute = self.registry.get_tool(tool_name)
             
             if not tool_to_execute:
