@@ -36,13 +36,14 @@ class BaseTool(ABC):
         pass
 
 
-def calculate_relevance_score(text: str, keywords: List[str]) -> float:
+def calculate_relevance_score(text: str, keywords: List[str], enable_detailed_logging: bool = False) -> float:
     """
     Вычисляет оценку релевантности текста на основе ключевых слов.
     Базовая реализация - количество найденных ключевых слов.
     
     :param text: Текст для анализа
     :param keywords: Список ключевых слов
+    :param enable_detailed_logging: Включить детальное логирование совпадений
     :return: Оценка релевантности (0.0 - 1.0)
     """
     if not text or not keywords:
@@ -50,11 +51,27 @@ def calculate_relevance_score(text: str, keywords: List[str]) -> float:
     
     text_lower = str(text).lower()
     matches = 0
+    matched_keywords = []
+    unmatched_keywords = []
     
     for keyword in keywords:
         keyword_lower = keyword.lower().strip()
         if keyword_lower and keyword_lower in text_lower:
             matches += 1
+            matched_keywords.append(keyword)
+        else:
+            unmatched_keywords.append(keyword)
+    
+    # Детальное логирование, если включено
+    if enable_detailed_logging and logger.isEnabledFor(20):  # INFO level
+        score = matches / len(keywords) if keywords else 0.0
+        text_preview = text[:100] + ("..." if len(text) > 100 else "")
+        
+        logger.info(" Анализ релевантности:")
+        logger.info(f"   📝 Текст: '{text_preview}'")
+        logger.info(f"   ✅ Найденные слова ({matches}/{len(keywords)}): {matched_keywords}")
+        logger.info(f"   ❌ Не найденные слова: {unmatched_keywords}")
+        logger.info(f"   📊 Оценка релевантности: {score:.3f}")
     
     # Нормализуем по количеству ключевых слов
     return matches / len(keywords) if keywords else 0.0

@@ -90,8 +90,9 @@ class KeywordSearchTool(BaseTool):
         logger.info(f"Поиск по лемматизированным ключевым словам в лемматизированной колонке '{lemmatized_column_name}'.")
 
         # Расчет релевантности на основе лемматизированных данных
+        logger.info("Начинаем расчет релевантности для найденных записей...")
         df_with_scores['keyword_relevance_score'] = df_with_scores[lemmatized_column_name].apply(
-            lambda text: calculate_relevance_score(text, lemmatized_keywords)
+            lambda text: calculate_relevance_score(text, lemmatized_keywords, enable_detailed_logging=True)
         )
 
         filtered_df = df_with_scores[df_with_scores['keyword_relevance_score'] > 0]
