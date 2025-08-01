@@ -1,6 +1,6 @@
 # app/pipelines/risks_pipeline.py
 
-from typing import Optional
+from typing import Optional, List
 import pandas as pd
 from app.pipelines.base import BasePipeline
 from app.domain.models.risk import Risk
@@ -10,6 +10,7 @@ from app.adapters.excel_loader import ExcelLoader
 from app.services.risk_normalization import RiskNormalizationService
 from app.services.risk_classifier import RiskClassifierService
 from app.services.risk_answer_generator import RiskAnswerGeneratorService
+from app.tools.tool_executor import ToolExecutor
 from app.utils.logging import setup_logger
 
 # Настройка логгера
@@ -26,7 +27,8 @@ class RisksPipeline(BasePipeline):
         excel_loader: ExcelLoader,
         normalization_service: RiskNormalizationService,
         classifier_service: RiskClassifierService,
-        answer_generator: RiskAnswerGeneratorService
+        answer_generator: RiskAnswerGeneratorService,
+        tool_executor: ToolExecutor  # Заменили tool_selector на tool_executor
     ):
         """
         Инициализация пайплайна рисков.
@@ -36,16 +38,13 @@ class RisksPipeline(BasePipeline):
             normalization_service=normalization_service,
             classifier_service=classifier_service,
             answer_generator=answer_generator,
-            button_type=ButtonType.RISKS
+            button_type=ButtonType.RISKS,
+            tool_executor=tool_executor
         )
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Risk:
         """
         Создает экземпляр риска из строки DataFrame.
-        
-        :param row: Строка DataFrame
-        :param relevance_score: Оценка релевантности
-        :return: Экземпляр Risk
         """
         return Risk(
             project_id=str(row.get('project_id', '')),
@@ -54,24 +53,16 @@ class RisksPipeline(BasePipeline):
             risk_text=row.get('risk_text', ''),
             risk_priority=row.get('risk_priority', ''),
             status=row.get('status', ''),
+            measures=row.get('measures', ''),
             relevance_score=relevance_score
         )
     
     def _get_entity_name(self) -> str:
-        """
-        Возвращает название сущности.
-        
-        :return: 'рисков'
-        """
         return "рисков"
     
     def _pre_process_dataframe(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
         """
         Фильтрует DataFrame по категории риска.
-        
-        :param df: Нормализованный DataFrame
-        :param kwargs: Должен содержать risk_category
-        :return: Отфильтрованный DataFrame
         """
         risk_category = kwargs.get('risk_category')
         
@@ -96,33 +87,25 @@ class RisksPipeline(BasePipeline):
     def _filter_data(self, df: pd.DataFrame, item_value: str):
         """
         Фильтрует риски по проекту.
+        Логика интеллектуальной фильтрации теперь находится в BasePipeline.
         """
         return self.classifier_service.filter_risks(df, item_value)
     
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
-        """
-        Генерирует контекст для рисков.
-        """
         risk_category = kwargs.get('risk_category', '')
         return f"Найдено {len(filtered_df)} рисков для проекта '{best_item}' в категории '{risk_category}'."
     
     def _generate_answer(self, question: str, items: list, additional_context: str, **kwargs) -> Answer:
-        """
-        Переопределяем для передачи категории в генератор ответов.
-        """
         return self.answer_generator.make_md(
             question=question,
-            risks=items,  # Используем старое название параметра
+            risks=items,
             category=kwargs.get('risk_category', ''),
             additional_context=additional_context
         )
     
     def process(self, question: str, risk_category: RiskCategory) -> Answer:
         """
-        Совместимость с существующим API - принимаем risk_category как отдельный параметр.
-        
-        :param question: Вопрос пользователя
-        :param risk_category: Категория риска
-        :return: Модель Answer
+        Основной метод обработки, адаптированный для новой архитектуры.
         """
-        return super().process(question, risk_category=risk_category)
+        # Просто вызываем родительский метод, передавая risk_category в kwargs
+        return super().process(question, risk_category=risk_category.value)

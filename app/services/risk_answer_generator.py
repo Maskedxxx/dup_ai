@@ -28,6 +28,7 @@ class RiskAnswerGeneratorService(BaseAnswerGeneratorService):
             "risk_text": item.risk_text,
             "risk_priority": item.risk_priority,
             "status": item.status,
+            "measures": item.measures,  # <--- ДОБАВЛЕНО
             "project_id": item.project_id,
             "project_type": item.project_type,
             "relevance_score": item.relevance_score

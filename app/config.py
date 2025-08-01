@@ -187,3 +187,24 @@ class ClassificationConfig:
 
 # Глобальный экземпляр конфигурации классификации
 classification_config = ClassificationConfig()
+
+# Конфигурация для умной фильтрации
+class SmartFilteringSettings(BaseSettings):
+    """Настройки для этапа умной фильтрации в пайплайнах."""
+    # Какому пайплайну какая СТРАТЕГИЯ соответствует
+    strategy: Dict[str, str] = {
+        "contractors": "none",
+        "risks": "keybert",
+        "errors": "none",
+        "processes": "none",
+    }
+    
+    # Какая СТРАТЕГИЯ какой ИНСТРУМЕНТ использует
+    strategy_tool_map: Dict[str, str] = {
+        "keybert": "search_by_keywords",
+    }
+    
+    llm_schemas_path: str = "app/tools/llm_schemas"
+
+# Создание экземпляра настроек умной фильтрации
+smart_filtering_settings = SmartFilteringSettings()

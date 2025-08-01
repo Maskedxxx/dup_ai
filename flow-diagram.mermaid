@@ -1,29 +1,32 @@
 graph TD
     A[Client Request] -->|POST /v1/ask| B[API Endpoint]
     B --> C{Button Type?}
-    
     C -->|contractors| D1[ContractorsPipeline]
     C -->|risks| D2[RisksPipeline]
-    C -->|errors| D3[ErrorsPipeline] 
+    C -->|errors| D3[ErrorsPipeline]
     C -->|processes| D4[ProcessesPipeline]
-    
-    D1 --> E[Excel Loader]
-    D2 --> E
-    D3 --> E
-    D4 --> E
-    
-    E -->|Load data| F[Normalization Service]
-    F -->|Clean data| G[Classifier Service]
-    
-    G -->|Query LLM| H[LLM Client]
-    H -->|Classification result| I[Filter Data]
-    
-    I --> J[Answer Generator]
-    J -->|Query LLM| H
-    H -->|Generated text| K[Response]
-    
-    K --> L[Client]
-    
+
+    subgraph Pipeline_Steps
+        D1 --> E[Data Processing]
+        D2 --> E
+        D3 --> E
+        D4 --> E
+
+        E --> F[Classification Service]
+        F -->|Query LLM| H[LLM Client]
+        H -->|Classification result| G{Has Tools?}
+        
+        G -->|Yes - risks| I[Tool Filtering]
+        G -->|No - others| J[Answer Generator]
+        
+        I -->|Deep filtering| J
+        J -->|Query LLM| H
+        H -->|Generated text| S[Response]
+    end
+
+    S --> T[Client]
+
     style A fill:#f9f,stroke:#333,stroke-width:2px
-    style L fill:#f9f,stroke:#333,stroke-width:2px
+    style T fill:#f9f,stroke:#333,stroke-width:2px
     style H fill:#bbf,stroke:#333,stroke-width:2px
+    style I fill:#9f9,stroke:#333,stroke-width:2px

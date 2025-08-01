@@ -22,6 +22,7 @@ from app.pipelines.processes_pipeline import ProcessesPipeline
 from app.services.process_normalization import ProcessNormalizationService
 from app.services.process_classifier import ProcessClassifierService
 from app.services.process_answer_generator import ProcessAnswerGeneratorService
+from app.tools.tool_executor import ToolExecutor
 from app.config import container
 from app.utils.logging import setup_logger
 
@@ -101,6 +102,12 @@ def init_container():
         lambda: ProcessAnswerGeneratorService(container.get(LLMClient))
     )
     
+    # Регистрируем фабрику для tool executor
+    container.register_factory(
+        ToolExecutor,
+        lambda: ToolExecutor(container.get(LLMClient))
+    )
+    
     logger.info("Контейнер с зависимостями инициализирован")
 
 def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) -> Pipeline:
@@ -123,28 +130,32 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(NormalizationService),
             classifier_service=container.get(ContractorClassifierService),
-            answer_generator=container.get(AnswerGeneratorService)
+            answer_generator=container.get(AnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.RISKS: lambda: RisksPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(RiskNormalizationService),
             classifier_service=container.get(RiskClassifierService),
-            answer_generator=container.get(RiskAnswerGeneratorService)
+            answer_generator=container.get(RiskAnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.ERRORS: lambda: ErrorsPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ErrorNormalizationService),
             classifier_service=container.get(ErrorClassifierService),
-            answer_generator=container.get(ErrorAnswerGeneratorService)
+            answer_generator=container.get(ErrorAnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.PROCESSES: lambda: ProcessesPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ProcessNormalizationService),
             classifier_service=container.get(ProcessClassifierService),
-            answer_generator=container.get(ProcessAnswerGeneratorService)
+            answer_generator=container.get(ProcessAnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         )
     }
     

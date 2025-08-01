@@ -30,7 +30,7 @@ class RiskNormalizationService(BaseNormalizationService):
             'Текущий статус': 'status',
             'Вероятность': 'probability',
             'Серьезность последствий': 'severity',
-            'Предлагаемые меры': 'proposed_measures'
+            'Предлагаемые меры': 'measures'
         }
     
     def _additional_processing(self, df: pd.DataFrame) -> pd.DataFrame:

@@ -73,9 +73,44 @@ class BaseClassifierService(ABC):
         """
         raise NotImplementedError("Необходимо переопределить _get_item_type_fallback или передать entity_type в конструктор")
     
+    def _preprocess_items_with_hashtags(self, items: List[str]) -> List[str]:
+        """
+        Предобрабатывает элементы, добавляя хештег-разделители для улучшения классификации LLM.
+        Использует символ # как разделитель сущностей - максимально обученный LLM паттерн.
+        
+        :param items: Исходный список элементов
+        :return: Обработанный список с хештег-разделителями
+        """
+        if not items:
+            return items
+            
+        processed_items = []
+        for item in items:
+            # Добавляем хештег в начало и конец для четкого разделения сущности
+            processed_item = f"#{item}#"
+            processed_items.append(processed_item)
+            
+        logger.debug(f"Предобработано {len(processed_items)} элементов с хештег-разделителями")
+        return processed_items
+
+    def _remove_hashtag_separators(self, item_with_hashtags: str) -> str:
+        """
+        Удаляет хештег-разделители из элемента, возвращая исходное значение.
+        
+        :param item_with_hashtags: Элемент с хештег-разделителями (#item#)
+        :return: Очищенный элемент
+        """
+        if not item_with_hashtags:
+            return item_with_hashtags
+            
+        # Убираем хештеги в начале и конце
+        cleaned = item_with_hashtags.strip('#')
+        return cleaned
+
     def _create_dynamic_classification_model(self, items: List[str]) -> Type[BaseModel]:
         """
         Создает динамическую модель Pydantic с Literal для точного выбора элементов.
+        Применяет предобработку с хештег-разделителями для улучшения классификации.
         
         :param items: Список доступных элементов для выбора
         :return: Класс модели Pydantic
@@ -84,9 +119,12 @@ class BaseClassifierService(ABC):
             logger.warning("Пустой список элементов для создания модели")
             items = ["Нет данных"]
         
-        # Создаем Literal тип из списка элементов
+        # Применяем предобработку с хештег-разделителями
+        processed_items = self._preprocess_items_with_hashtags(items)
+        
+        # Создаем Literal тип из списка обработанных элементов
         from typing import Literal
-        literal_type = Literal[tuple(items)]
+        literal_type = Literal[tuple(processed_items)]
         
         # Создаем модель для одного результата сопоставления
         MatchResultWithLiteral = create_model(
@@ -153,9 +191,13 @@ class BaseClassifierService(ABC):
         self.pipeline_logger.log_detail("Создаем динамическую модель классификации")
         classification_model = self._create_dynamic_classification_model(self.items_list)
         
+        # Применяем предобработку с хештег-разделителями для списка в промпте
+        self.pipeline_logger.log_detail("Применяем хештег-разделители к списку элементов для промпта")
+        processed_items_for_prompt = self._preprocess_items_with_hashtags(self.items_list)
+
         # Получаем промпты для классификации
         self.pipeline_logger.log_detail("Формируем промпты для классификации")
-        prompts = self._build_classification_prompts(question)
+        prompts = self._build_classification_prompts(question, processed_items_for_prompt)
         
         # Логируем полные промпты в детальном режиме
         self.pipeline_logger.log_prompt_details(
@@ -195,8 +237,12 @@ class BaseClassifierService(ABC):
                 # Возвращаем элемент с наивысшей оценкой
                 if top_matches:
                     best_match = max(top_matches, key=lambda x: x.score)
-                    self.pipeline_logger.log_detail(f"Выбран лучший элемент: '{best_match.item}' с оценкой {best_match.score}")
-                    return best_match.item
+                    
+                    # Убираем хештег-разделители из результата
+                    clean_item = self._remove_hashtag_separators(best_match.item)
+                    
+                    self.pipeline_logger.log_detail(f"Выбран лучший элемент: '{clean_item}' с оценкой {best_match.score}")
+                    return clean_item
             
             self.pipeline_logger.log_detail("Модель не вернула структурированный ответ", "WARNING")
             return ""
@@ -239,18 +285,22 @@ class BaseClassifierService(ABC):
         logger.info(f"Найдено {len(filtered_df)} элементов")
         return filtered_df, scores
     
-    def _build_classification_prompts(self, question: str) -> Dict[str, str]:
+    def _build_classification_prompts(self, question: str, processed_items: List[str] = None) -> Dict[str, str]:
         """
         Строит промпты для классификации запроса.
         
         :param question: Вопрос пользователя
+        :param processed_items: Обработанные элементы с хештег-разделителями (опционально)
         :return: Словарь с системным и пользовательским промптами
         """
         from app.utils.prompt_builder import PromptBuilder
         
+        # Используем обработанные элементы если переданы, иначе исходные
+        items_for_prompt = processed_items if processed_items is not None else self.items_list
+        
         # Используем универсальный метод PromptBuilder
         return PromptBuilder.build_classification_prompt(
             question=question,
-            items=self.items_list,
+            items=items_for_prompt,
             item_type=self.get_item_type()
         )
