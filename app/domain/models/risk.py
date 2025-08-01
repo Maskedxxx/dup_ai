@@ -11,4 +11,5 @@ class Risk(BaseModel):
     risk_text: str  # Текст риска (из JSON)
     risk_priority: Optional[str] = None  # Приоритетность
     status: Optional[str] = None  # Текущий статус
+    measures: Optional[str] = None  # Предлагаемые меры
     relevance_score: Optional[float] = None  # Оценка релевантности

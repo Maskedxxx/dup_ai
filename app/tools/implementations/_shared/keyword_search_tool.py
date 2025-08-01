@@ -78,9 +78,14 @@ class KeywordSearchTool(BaseTool):
 
         logger.info(f"KeywordSearchTool: Оригинальные ключевые слова: {keywords}")
         
-        # Лемматизация ключевых слов
-        lemmatized_keywords = [self._lemmatize_text(kw) for kw in keywords if kw]
-        logger.info(f"KeywordSearchTool: Лемматизированные ключевые слова: {lemmatized_keywords}")
+        # Лемматизация и дедупликация ключевых слов
+        lemmatized_keywords_raw = [self._lemmatize_text(kw) for kw in keywords if kw]
+        lemmatized_keywords = list(dict.fromkeys(lemmatized_keywords_raw)) # Сохраняем порядок и удаляем дубликаты
+        
+        if len(lemmatized_keywords_raw) != len(lemmatized_keywords):
+            logger.info(f"Удалены дубликаты после лемматизации. Было: {lemmatized_keywords_raw}, стало: {lemmatized_keywords}")
+        else:
+            logger.info(f"KeywordSearchTool: Лемматизированные ключевые слова: {lemmatized_keywords}")
 
         # Лемматизация колонки для поиска
         lemmatized_column_name = f"lemmatized_{column_to_search}"

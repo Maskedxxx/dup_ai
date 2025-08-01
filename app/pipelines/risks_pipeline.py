@@ -53,6 +53,7 @@ class RisksPipeline(BasePipeline):
             risk_text=row.get('risk_text', ''),
             risk_priority=row.get('risk_priority', ''),
             status=row.get('status', ''),
+            measures=row.get('measures', ''),
             relevance_score=relevance_score
         )
     
