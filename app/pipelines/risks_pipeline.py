@@ -3,7 +3,6 @@
 from typing import Optional, List
 import pandas as pd
 from app.pipelines.base import BasePipeline
-from app.tools.common_toolsets import CommonToolSets
 from app.domain.models.risk import Risk
 from app.domain.models.answer import Answer
 from app.domain.enums import ButtonType, RiskCategory
@@ -59,17 +58,6 @@ class RisksPipeline(BasePipeline):
     
     def _get_entity_name(self) -> str:
         return "рисков"
-    
-    def get_tool_names(self) -> List[str]:
-        """
-        Возвращает набор инструментов для анализа рисков.
-        
-        Риски используют расширенный набор инструментов:
-        - Поиск по ключевым словам
-        - Фильтрация по приоритету (в будущем)
-        - Фильтрация по датам (в будущем)
-        """
-        return CommonToolSets.RISK_ANALYSIS
     
     def _pre_process_dataframe(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
         """

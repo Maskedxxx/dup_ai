@@ -3,7 +3,6 @@
 from typing import Optional, List
 import pandas as pd
 from app.pipelines.base import BasePipeline
-from app.tools.common_toolsets import CommonToolSets
 from app.domain.models.error import Error
 from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
@@ -69,16 +68,6 @@ class ErrorsPipeline(BasePipeline):
         :return: 'ошибок'
         """
         return "ошибок"
-    
-    def get_tool_names(self) -> List[str]:
-        """
-        Возвращает набор инструментов для анализа ошибок.
-        
-        ПОКА ПУСТОЙ СПИСОК - инструменты для ошибок еще не созданы.
-        Когда будете готовы добавить инструменты, просто раскомментируйте строку ниже:
-        # return CommonToolSets.ERROR_ANALYSIS
-        """
-        return CommonToolSets.NONE  # Пустой список
     
     def _load_classifier_items(self, df: pd.DataFrame):
         """

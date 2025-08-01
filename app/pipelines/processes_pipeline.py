@@ -3,7 +3,6 @@
 from typing import Optional, List
 import pandas as pd
 from app.pipelines.base import BasePipeline
-from app.tools.common_toolsets import CommonToolSets
 from app.domain.models.process import Process
 from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
@@ -65,16 +64,6 @@ class ProcessesPipeline(BasePipeline):
         :return: 'бизнес-процессов'
         """
         return "бизнес-процессов"
-    
-    def get_tool_names(self) -> List[str]:
-        """
-        Возвращает набор инструментов для анализа бизнес-процессов.
-        
-        ПОКА ПУСТОЙ СПИСОК - инструменты для процессов еще не созданы.
-        Когда будете готовы добавить инструменты, просто раскомментируйте строку ниже:
-        # return CommonToolSets.PROCESS_ANALYSIS
-        """
-        return CommonToolSets.NONE  # Пустой список
     
     def _load_classifier_items(self, df: pd.DataFrame):
         """
