@@ -15,6 +15,7 @@ env.bak/
 venv.bak/
 legacy/
 vector_store/
+tree_view.py
 
 # Logs
 *.log

@@ -103,8 +103,8 @@ class BasePipeline:
         self._load_classifier_items(processed_df)
         # 5. Классификация (с динамическими Literal типами)
         best_item = self.classifier_service.classify(question)
-        # 6. Фильтрация
-        filtered_df = self._filter_data(processed_df, best_item)
+        # 6. Интеллектуальная фильтрация (условная логика)
+        filtered_df = self._smart_filter_data(processed_df, best_item, question)
         # 7. Преобразование в модели
         items = self._dataframe_to_models(filtered_df)
         # 8. Генерация ответа
@@ -140,17 +140,20 @@ def _create_dynamic_classification_model(self, items: List[str]):
 
 ## Поток данных
 
-1. **Request** → `API Endpoint`
-2. **Route** → выбор `Pipeline` по типу кнопки
-3. **[ШАГ 1]** → `ExcelLoader` загружает данные
-4. **[ШАГ 2]** → `NormalizationService` очищает
-5. **[ШАГ 3]** → Предварительная обработка (фильтрация по категории)
-6. **[ШАГ 4]** → Загрузка элементов для классификации (например, проектов)
-7. **[ШАГ 5]** → `ClassifierService` + `LLM` (определение проекта)
-8. **[ШАГ 6]** → `ToolExecutor` + `LLM` (интеллектуальная фильтрация внутри проекта)
-9. **[ШАГ 7]** → Преобразование в доменные модели
-10. **[ШАГ 8]** → `AnswerGenerator` + `LLM`
-11. **Response** → возврат клиенту
+**Request** → `API Endpoint` → выбор `Pipeline` по типу кнопки → **Pipeline process (8 шагов)**:
+
+1. **[ШАГ 1]** → `ExcelLoader` загружает данные
+2. **[ШАГ 2]** → `NormalizationService` очищает
+3. **[ШАГ 3]** → Предварительная обработка (фильтрация по категории)
+4. **[ШАГ 4]** → Загрузка элементов для классификации (например, проектов)
+5. **[ШАГ 5]** → `ClassifierService` + `LLM` (определение проекта)
+6. **[ШАГ 6]** → Интеллектуальная фильтрация:
+   - **Риски**: `ToolExecutor` + `LLM` (глубокая фильтрация по смыслу)
+   - **Остальные**: обычная фильтрация по результату классификации
+7. **[ШАГ 7]** → Преобразование в доменные модели
+8. **[ШАГ 8]** → `AnswerGenerator` + `LLM`
+
+→ **Response** возврат клиенту
 
 ## Архитектура инструментов (Tools)
 
@@ -172,15 +175,19 @@ def _create_dynamic_classification_model(self, items: List[str]):
 
 ```mermaid
 graph TD
-    A[Pipeline] -->|User Query| B(ToolExecutor)
-    B --> C{ToolRegistry: Get Schemas}
-    C --> B
-    B -->|Query + Schemas| D(LLM)
-    D -->|Tool Name + Args| B
-    B --> E{ToolRegistry: Get Tool}
-    E -->|Selected Tool| B
-    B -->|Execute Tool| F(KeywordSearchTool)
-    F -->|Filtered Data| A
+    A[Pipeline ШАГ 6] --> B{Smart Filtering?}
+    B -->|risks - keybert| C[ToolExecutor]
+    B -->|others - none| D[Direct Filtering]
+    
+    C -->|Get Schemas| E[ToolRegistry]
+    E --> C
+    C -->|Query + Schemas| F[LLM]
+    F -->|Tool Choice| C
+    C -->|Execute| G[KeywordSearchTool]
+    
+    G --> H[Filtered Data]
+    D --> H
+    H --> I[ШАГ 7: Create Models]
 ```
 
 
@@ -194,7 +201,25 @@ BaseAppSettings
 ├── RiskSettings  
 ├── ErrorSettings
 ├── ProcessSettings
-└── LLMSettings
+├── LLMSettings
+└── SmartFilteringSettings (стратегии фильтрации)
+```
+
+### SmartFilteringSettings
+```python
+class SmartFilteringSettings:
+    # Стратегия для каждого типа пайплайна
+    strategy: Dict[str, str] = {
+        "contractors": "none",      # Без дополнительной фильтрации
+        "risks": "keybert",         # Интеллектуальный поиск по ключевым словам
+        "errors": "none",           # Без дополнительной фильтрации
+        "processes": "none",        # Без дополнительной фильтрации
+    }
+    
+    # Какая стратегия использует какой инструмент
+    strategy_tool_map: Dict[str, str] = {
+        "keybert": "search_by_keywords",
+    }
 ```
 
 ### Префиксы переменных окружения
