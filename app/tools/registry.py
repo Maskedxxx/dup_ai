@@ -2,7 +2,7 @@
 
 from typing import Dict, List, Any, Optional
 from app.tools.base_tool import BaseTool
-from app.tools.keyword_search_tool import KeywordSearchTool
+from app.tools.implementations._shared.keyword_search_tool import KeywordSearchTool
 from app.utils.logging import setup_logger
 
 # Настройка логгера

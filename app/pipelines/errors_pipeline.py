@@ -26,7 +26,8 @@ class ErrorsPipeline(BasePipeline):
         excel_loader: ExcelLoader,
         normalization_service: ErrorNormalizationService,
         classifier_service: ErrorClassifierService,
-        answer_generator: ErrorAnswerGeneratorService
+        answer_generator: ErrorAnswerGeneratorService,
+        tool_executor
     ):
         """
         Инициализация пайплайна ошибок.
@@ -36,7 +37,8 @@ class ErrorsPipeline(BasePipeline):
             normalization_service=normalization_service,
             classifier_service=classifier_service,
             answer_generator=answer_generator,
-            button_type=ButtonType.ERRORS
+            button_type=ButtonType.ERRORS,
+            tool_executor=tool_executor
         )
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Error:

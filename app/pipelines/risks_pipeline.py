@@ -39,9 +39,9 @@ class RisksPipeline(BasePipeline):
             normalization_service=normalization_service,
             classifier_service=classifier_service,
             answer_generator=answer_generator,
-            button_type=ButtonType.RISKS
+            button_type=ButtonType.RISKS,
+            tool_executor=tool_executor
         )
-        self.tool_executor = tool_executor
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Risk:
         """
@@ -97,43 +97,10 @@ class RisksPipeline(BasePipeline):
     
     def _filter_data(self, df: pd.DataFrame, item_value: str):
         """
-        Фильтрует риски по проекту, а затем применяет интеллектуальную фильтрацию.
+        Фильтрует риски по проекту.
+        Логика интеллектуальной фильтрации теперь находится в BasePipeline.
         """
-        # Этап 1: Фильтрация по проекту (основная классификация)
-        project_filtered_df, project_scores = self.classifier_service.filter_risks(df, item_value)
-        
-        if project_filtered_df.empty:
-            return project_filtered_df, project_scores
-
-        # Этап 2: Интеллектуальная фильтрация с помощью инструментов
-        try:
-            question = getattr(self, '_current_question', '')
-            if not question or not self.tool_executor:
-                return project_filtered_df, project_scores
-
-            self.pipeline_logger.log_detail(f"Запуск интеллектуальной фильтрации для проекта '{item_value}'...")
-            
-            # Вызываем ToolExecutor с ограниченным набором инструментов для рисков
-            smart_filtered_df, smart_scores = self.tool_executor.select_and_execute(
-                question=question,
-                df=project_filtered_df,
-                available_tool_names=self.get_tool_names(),  # Передаем инструменты пайплайна
-                project_name=item_value, # Передаем доп. контекст для промпта
-                risk_category=getattr(self, '_current_risk_category', '')
-            )
-            
-            # Если LLM не выбрал инструмент или инструмент ничего не нашел,
-            # smart_scores будет пустым. В этом случае возвращаем результат первого этапа.
-            if smart_scores:
-                self.pipeline_logger.log_detail(f"Intelligent filtering: {len(project_filtered_df)} -> {len(smart_filtered_df)} записей.")
-                return smart_filtered_df, smart_scores
-            else:
-                self.pipeline_logger.log_detail("Intelligent filtering: LLM не выбрал инструмент или инструмент не нашел совпадений.")
-                return project_filtered_df, project_scores
-
-        except Exception as e:
-            self.pipeline_logger.log_detail(f"Ошибка intelligent filtering: {e}", "WARNING")
-            return project_filtered_df, project_scores
+        return self.classifier_service.filter_risks(df, item_value)
     
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         risk_category = kwargs.get('risk_category', '')
@@ -151,13 +118,5 @@ class RisksPipeline(BasePipeline):
         """
         Основной метод обработки, адаптированный для новой архитектуры.
         """
-        self._current_question = question
-        self._current_risk_category = risk_category.value if isinstance(risk_category, RiskCategory) else risk_category
-        
-        try:
-            return super().process(question, risk_category=risk_category)
-        finally:
-            if hasattr(self, '_current_question'):
-                delattr(self, '_current_question')
-            if hasattr(self, '_current_risk_category'):
-                delattr(self, '_current_risk_category')
+        # Просто вызываем родительский метод, передавая risk_category в kwargs
+        return super().process(question, risk_category=risk_category.value)

@@ -26,7 +26,8 @@ class ProcessesPipeline(BasePipeline):
         excel_loader: ExcelLoader,
         normalization_service: ProcessNormalizationService,
         classifier_service: ProcessClassifierService,
-        answer_generator: ProcessAnswerGeneratorService
+        answer_generator: ProcessAnswerGeneratorService,
+        tool_executor
     ):
         """
         Инициализация пайплайна процессов.
@@ -36,7 +37,8 @@ class ProcessesPipeline(BasePipeline):
             normalization_service=normalization_service,
             classifier_service=classifier_service,
             answer_generator=answer_generator,
-            button_type=ButtonType.PROCESSES
+            button_type=ButtonType.PROCESSES,
+            tool_executor=tool_executor
         )
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Process:

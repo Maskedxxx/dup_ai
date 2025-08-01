@@ -130,7 +130,8 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(NormalizationService),
             classifier_service=container.get(ContractorClassifierService),
-            answer_generator=container.get(AnswerGeneratorService)
+            answer_generator=container.get(AnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.RISKS: lambda: RisksPipeline(
@@ -145,14 +146,16 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ErrorNormalizationService),
             classifier_service=container.get(ErrorClassifierService),
-            answer_generator=container.get(ErrorAnswerGeneratorService)
+            answer_generator=container.get(ErrorAnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         ),
         
         ButtonType.PROCESSES: lambda: ProcessesPipeline(
             excel_loader=container.get(ExcelLoader),
             normalization_service=container.get(ProcessNormalizationService),
             classifier_service=container.get(ProcessClassifierService),
-            answer_generator=container.get(ProcessAnswerGeneratorService)
+            answer_generator=container.get(ProcessAnswerGeneratorService),
+            tool_executor=container.get(ToolExecutor)
         )
     }
     

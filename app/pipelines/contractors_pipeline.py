@@ -26,7 +26,8 @@ class ContractorsPipeline(BasePipeline):
         excel_loader: ExcelLoader,
         normalization_service: NormalizationService,
         classifier_service: ContractorClassifierService,
-        answer_generator: AnswerGeneratorService
+        answer_generator: AnswerGeneratorService,
+        tool_executor # Добавляем tool_executor
     ):
         """
         Инициализация пайплайна подрядчиков.
@@ -36,7 +37,8 @@ class ContractorsPipeline(BasePipeline):
             normalization_service=normalization_service,
             classifier_service=classifier_service,
             answer_generator=answer_generator,
-            button_type=ButtonType.CONTRACTORS
+            button_type=ButtonType.CONTRACTORS,
+            tool_executor=tool_executor # Передаем в родительский класс
         )
     
     def _create_model_instance(self, row: pd.Series, relevance_score: Optional[float]) -> Contractor:

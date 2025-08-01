@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from app.domain.models.answer import Answer
 from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
+from app.tools.tool_executor import ToolExecutor
 from app.utils.logging import get_pipeline_logger
 
 class Pipeline(ABC):
@@ -37,7 +38,8 @@ class BasePipeline(Pipeline):
         normalization_service,
         classifier_service,
         answer_generator,
-        button_type: ButtonType
+        button_type: ButtonType,
+        tool_executor: ToolExecutor
     ):
         """
         Инициализация базового пайплайна.
@@ -47,12 +49,14 @@ class BasePipeline(Pipeline):
         :param classifier_service: Сервис классификации
         :param answer_generator: Сервис генерации ответов
         :param button_type: Тип кнопки для загрузки правильного файла
+        :param tool_executor: Исполнитель для этапа умной фильтрации
         """
         self.excel_loader = excel_loader
         self.normalization_service = normalization_service
         self.classifier_service = classifier_service
         self.answer_generator = answer_generator
         self.button_type = button_type
+        self.tool_executor = tool_executor
         
         # Инициализируем логгер пайплайна
         self.pipeline_logger = get_pipeline_logger(f"{self.__class__.__name__}")
@@ -251,11 +255,39 @@ class BasePipeline(Pipeline):
             except Exception as e:
                 self.pipeline_logger.log_step_error(6, "Фильтрация данных", str(e))
                 raise
-            
+
+            # ШАГ 6.5: УМНАЯ ФИЛЬТРАЦИЯ
+            final_df, final_scores = filtered_df, relevance_scores
+            try:
+                self.pipeline_logger.log_detail("Начинаем этап умной фильтрации")
+                
+                smart_filtered_df, smart_scores = self.tool_executor.apply_smart_filtering(
+                    question=question,
+                    df=filtered_df,
+                    button_type=self.button_type,
+                    **kwargs
+                )
+                
+                # Если умная фильтрация вернула результаты, используем их
+                if not smart_filtered_df.empty and smart_scores:
+                    final_df = smart_filtered_df
+                    final_scores = smart_scores
+                    self.pipeline_logger.log_step_ok(
+                        6.5, "Умная фильтрация", f"Найдено {len(final_df)} записей после доп. фильтрации"
+                    )
+                else:
+                    self.pipeline_logger.log_step_ok(
+                        6.5, "Умная фильтрация", "Не найдено релевантных результатов, используются данные после основной классификации"
+                    )
+
+            except Exception as e:
+                self.pipeline_logger.log_step_error(6.5, "Умная фильтрация", str(e))
+                # Не прерываем пайплайн, просто используем результаты предыдущего шага
+
             # ШАГ 7: Преобразование в модели
             try:
                 self.pipeline_logger.log_detail("Преобразуем данные в модели")
-                items = self._dataframe_to_models(filtered_df, relevance_scores)
+                items = self._dataframe_to_models(final_df, final_scores)
                 
                 self.pipeline_logger.log_step_ok(
                     7, "Преобразование в модели",
