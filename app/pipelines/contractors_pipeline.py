@@ -6,7 +6,7 @@ from app.pipelines.base import BasePipeline
 from app.domain.models.contractor import Contractor
 from app.domain.enums import ButtonType
 from app.adapters.excel_loader import ExcelLoader
-from app.services.contractor_normalization import NormalizationService
+from app.services.contractor_normalization import ContractorNormalizationService
 from app.services.contractor_classifier import ContractorClassifierService
 from app.services.contractor_answer_generator import AnswerGeneratorService
 from app.utils.logging import setup_logger
@@ -23,7 +23,7 @@ class ContractorsPipeline(BasePipeline):
     def __init__(
         self,
         excel_loader: ExcelLoader,
-        normalization_service: NormalizationService,
+        normalization_service: ContractorNormalizationService,
         classifier_service: ContractorClassifierService,
         answer_generator: AnswerGeneratorService,
         tool_executor # Добавляем tool_executor
@@ -68,21 +68,7 @@ class ContractorsPipeline(BasePipeline):
         :return: 'подрядчиков'
         """
         return "подрядчиков"
-    
-    def _load_classifier_items(self, df: pd.DataFrame):
-        """
-        Загружает типы работ для классификации.
-        Переопределяем для совместимости со старым API.
-        """
-        self.classifier_service.load_work_types(df)
-    
-    def _filter_data(self, df: pd.DataFrame, item_value: str):
-        """
-        Фильтрует подрядчиков по типу работ.
-        Переопределяем для совместимости со старым API.
-        """
-        return self.classifier_service.filter_contractors(df, item_value)
-    
+        
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         """
         Генерирует контекст для подрядчиков.

@@ -22,7 +22,7 @@ router = APIRouter(
 # Словарь обработчиков для разных типов кнопок
 BUTTON_PROCESSORS = {
     ButtonType.CONTRACTORS: lambda pipeline, req: pipeline.process(req.question),
-    ButtonType.RISKS: lambda pipeline, req: pipeline.process(req.question, req.risk_category),
+    ButtonType.RISKS: lambda pipeline, req: pipeline.process(req.question, risk_category=req.risk_category),
     ButtonType.ERRORS: lambda pipeline, req: pipeline.process(req.question),
     ButtonType.PROCESSES: lambda pipeline, req: pipeline.process(req.question),
 }

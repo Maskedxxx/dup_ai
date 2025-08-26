@@ -61,7 +61,12 @@ class ToolExecutor:
 
             logger.info(f"Запуск стратегии KeyBERT с инструментом '{tool_name}'")
 
-            keywords = self._extract_keywords_with_keybert(question)
+            # Прямой вызов сервиса вместо дублирования
+            keywords = self.keybert_service.extract_keywords(
+                text=question,
+                top_n=7,
+                keyphrase_ngram_range=(1, 1)
+            )
             if not keywords:
                 logger.warning("KeyBERT не извлек ключевые слова. Возвращаем исходные данные.")
                 return df, {}
@@ -107,17 +112,3 @@ class ToolExecutor:
         # 3. Объединить результаты (например, по пересечению или объединению)
         return df, {}
 
-    def _extract_keywords_with_keybert(self, question: str, top_n: int = 7) -> list:
-        """
-        Извлекает ключевые слова из вопроса с помощью KeyBERT.
-        """
-        try:
-            keywords = self.keybert_service.extract_keywords(
-                text=question,
-                top_n=top_n,
-                keyphrase_ngram_range=(1, 1)
-            )
-            return keywords
-        except Exception as e:
-            logger.error(f"Ошибка при извлечении ключевых слов с KeyBERT: {e}")
-            return []

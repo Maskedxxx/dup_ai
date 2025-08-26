@@ -3,7 +3,7 @@
 import pandas as pd
 import os
 from pathlib import Path
-from fastapi import HTTPException
+from app.adapters.exceptions import DataLoadError
 from app.config import contractor_settings, risk_settings, error_settings, process_settings
 from app.utils.logging import setup_logger, get_pipeline_logger
 from app.domain.enums import ButtonType
@@ -36,7 +36,7 @@ class ExcelLoader:
         if not self._check_file_exists(file_path):
             error_msg = f"Файл данных не найден: {file_path}"
             self.pipeline_logger.log_detail(error_msg, "ERROR")
-            raise HTTPException(status_code=500, detail=error_msg)
+            raise DataLoadError(error_msg)
         
         file_info = self._get_file_info(file_path)
         self.pipeline_logger.log_detail(f"Информация о файле: {file_info}")
@@ -59,7 +59,7 @@ class ExcelLoader:
             error_msg = f"Ошибка чтения или обработки файла данных: {e}"
             self.pipeline_logger.log_detail(error_msg, "ERROR")
             self.pipeline_logger.log_detail(f"Тип ошибки: {type(e).__name__}")
-            raise HTTPException(status_code=500, detail=error_msg)
+            raise DataLoadError(error_msg)
     
     def _clean_dataframe(self, df: pd.DataFrame) -> pd.DataFrame:
         """

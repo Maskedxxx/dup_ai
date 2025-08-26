@@ -64,19 +64,7 @@ class ProcessesPipeline(BasePipeline):
         :return: 'бизнес-процессов'
         """
         return "бизнес-процессов"
-    
-    def _load_classifier_items(self, df: pd.DataFrame):
-        """
-        Загружает названия процессов для классификации.
-        """
-        self.classifier_service.load_process_names(df)
-    
-    def _filter_data(self, df: pd.DataFrame, item_value: str):
-        """
-        Фильтрует процессы по названию.
-        """
-        return self.classifier_service.filter_processes(df, item_value)
-    
+        
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         """
         Генерирует контекст для процессов.

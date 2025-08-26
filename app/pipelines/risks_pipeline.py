@@ -77,20 +77,7 @@ class RisksPipeline(BasePipeline):
             logger.warning(f"Не найдено рисков для категории '{risk_category}'")
         
         return category_filtered_df
-    
-    def _load_classifier_items(self, df: pd.DataFrame):
-        """
-        Загружает названия проектов для классификации.
-        """
-        self.classifier_service.load_project_names(df)
-    
-    def _filter_data(self, df: pd.DataFrame, item_value: str):
-        """
-        Фильтрует риски по проекту.
-        Логика интеллектуальной фильтрации теперь находится в BasePipeline.
-        """
-        return self.classifier_service.filter_risks(df, item_value)
-    
+        
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         risk_category = kwargs.get('risk_category', '')
         return f"Найдено {len(filtered_df)} рисков для проекта '{best_item}' в категории '{risk_category}'."
@@ -102,10 +89,3 @@ class RisksPipeline(BasePipeline):
             category=kwargs.get('risk_category', ''),
             additional_context=additional_context
         )
-    
-    def process(self, question: str, risk_category: RiskCategory) -> Answer:
-        """
-        Основной метод обработки, адаптированный для новой архитектуры.
-        """
-        # Просто вызываем родительский метод, передавая risk_category в kwargs
-        return super().process(question, risk_category=risk_category.value)

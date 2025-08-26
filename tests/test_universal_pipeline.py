@@ -63,7 +63,7 @@ def test_pipeline(button: str, question: str, risk_category: Optional[str] = Non
         print("\n⚙️ Запуск пайплайна...")
         
         if request.button == ButtonType.RISKS:
-            result = pipeline.process(request.question, request.risk_category)
+            result = pipeline.process(request.question, risk_category=request.risk_category)
         else:
             result = pipeline.process(request.question)
         
