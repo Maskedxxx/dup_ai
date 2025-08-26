@@ -8,7 +8,7 @@ from app.utils.logging import setup_logger
 logger = setup_logger(__name__)
 
 
-class NormalizationService(BaseNormalizationService):
+class ContractorNormalizationService(BaseNormalizationService):
     """
     Сервис для нормализации данных о подрядчиках.
     """

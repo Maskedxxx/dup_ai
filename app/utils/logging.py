@@ -8,13 +8,14 @@ import uuid
 from pathlib import Path
 from logging.handlers import RotatingFileHandler
 from typing import Optional
+from contextvars import ContextVar
 
 LOG_DIR = Path(__file__).resolve().parent.parent.parent / "LOGS"
 LOG_DIR.mkdir(parents=True, exist_ok=True)
 
 # Глобальные переменные для единого логгера
 _unified_logger: Optional[logging.Logger] = None
-_current_pipeline_id: Optional[str] = None
+_current_pipeline_id_var: ContextVar[Optional[str]] = ContextVar("pipeline_id", default=None)
 
 
 def _build_formatter() -> logging.Formatter:
@@ -103,10 +104,9 @@ class PipelineLogger:
         :param question: Вопрос пользователя
         :return: ID пайплайна для связки логов
         """
-        global _current_pipeline_id
-        
         self.pipeline_id = str(uuid.uuid4())[:8]
-        _current_pipeline_id = self.pipeline_id
+        # Сохраняем токен, чтобы уметь сбрасывать значение позже
+        self._pipeline_token = _current_pipeline_id_var.set(self.pipeline_id)
         self.start_time = time.time()
         
         # Определяем режим логирования
@@ -128,8 +128,6 @@ class PipelineLogger:
         :param success: Успешно ли завершился пайплайн
         :param error_msg: Сообщение об ошибке, если есть
         """
-        global _current_pipeline_id
-        
         if self.start_time:
             duration = time.time() - self.start_time
         else:
@@ -144,7 +142,11 @@ class PipelineLogger:
             
         self.logger.info(f"{separator}\n")
         
-        _current_pipeline_id = None
+        # Сбрасываем контекстный pipeline_id
+        try:
+            _current_pipeline_id_var.reset(self._pipeline_token)  # вернуть предыдущее значение
+        except Exception:
+            _current_pipeline_id_var.set(None)
         self.pipeline_id = None
         self.start_time = None
     
@@ -188,8 +190,7 @@ class PipelineLogger:
             return  # В PROD режиме детали не логируем
             
         # Используем глобальный pipeline_id если локальный не установлен
-        global _current_pipeline_id
-        current_id = self.pipeline_id or _current_pipeline_id
+        current_id = self.pipeline_id or _current_pipeline_id_var.get()
         
         pipeline_prefix = f"[{current_id}]" if current_id else "[NO_PIPELINE]"
         full_message = f"{pipeline_prefix} {message}"

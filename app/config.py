@@ -142,14 +142,14 @@ class ClassificationConfig:
     
     # Настройки для ошибок
     ERROR = {
-        "column_name": "project_name",
+        "column_name": "project",
         "item_type": "проект", 
         "description": "Классификация ошибок по проектам"
     }
     
     # Настройки для процессов
     PROCESS = {
-        "column_name": "process_name",
+        "column_name": "name",
         "item_type": "процесс",
         "description": "Классификация по бизнес-процессам"
     }

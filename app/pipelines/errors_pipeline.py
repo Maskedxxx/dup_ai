@@ -68,19 +68,7 @@ class ErrorsPipeline(BasePipeline):
         :return: 'ошибок'
         """
         return "ошибок"
-    
-    def _load_classifier_items(self, df: pd.DataFrame):
-        """
-        Загружает названия проектов для классификации.
-        """
-        self.classifier_service.load_project_names(df)
-    
-    def _filter_data(self, df: pd.DataFrame, item_value: str):
-        """
-        Фильтрует ошибки по проекту.
-        """
-        return self.classifier_service.filter_errors(df, item_value)
-    
+        
     def _generate_additional_context(self, filtered_df: pd.DataFrame, best_item: str, **kwargs) -> str:
         """
         Генерирует контекст для ошибок.

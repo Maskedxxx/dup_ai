@@ -9,7 +9,7 @@ from app.pipelines.errors_pipeline import ErrorsPipeline
 from app.pipelines.processes_pipeline import ProcessesPipeline
 from app.adapters.excel_loader import ExcelLoader
 from app.adapters.llm_client import LLMClient
-from app.services.contractor_normalization import NormalizationService
+from app.services.contractor_normalization import ContractorNormalizationService
 from app.services.contractor_classifier import ContractorClassifierService
 from app.services.contractor_answer_generator import AnswerGeneratorService
 from app.services.risk_normalization import RiskNormalizationService
@@ -48,8 +48,8 @@ def init_container():
     
     # Регистрируем фабрики для сервисов подрядчиков
     container.register_factory(
-        NormalizationService, 
-        lambda: NormalizationService()
+        ContractorNormalizationService, 
+        lambda: ContractorNormalizationService()
     )
     container.register_factory(
         ContractorClassifierService, 
@@ -128,7 +128,7 @@ def get_pipeline(button_type: ButtonType, risk_category: RiskCategory = None) ->
     pipeline_factories = {
         ButtonType.CONTRACTORS: lambda: ContractorsPipeline(
             excel_loader=container.get(ExcelLoader),
-            normalization_service=container.get(NormalizationService),
+            normalization_service=container.get(ContractorNormalizationService),
             classifier_service=container.get(ContractorClassifierService),
             answer_generator=container.get(AnswerGeneratorService),
             tool_executor=container.get(ToolExecutor)
