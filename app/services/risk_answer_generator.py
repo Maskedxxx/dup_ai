@@ -25,10 +25,10 @@ class RiskAnswerGeneratorService(BaseAnswerGeneratorService):
         """
         return {
             "project_name": item.project_name,
-            "risk_text": item.risk_text,
+            "Исходный_текст_риска": item.risk_text,
             "risk_priority": item.risk_priority,
             "status": item.status,
-            "measures": item.measures,  # <--- ДОБАВЛЕНО
+            "Меры_которые_требуется_предпринять_к_целевому_риску": item.measures,  # <--- ДОБАВЛЕНО
             "project_id": item.project_id,
             "project_type": item.project_type,
             "relevance_score": item.relevance_score
