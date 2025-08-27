@@ -281,6 +281,12 @@ class BasePipeline(Pipeline):
                     8, "Генерация ответа",
                     f"Ответ сгенерирован ({len(answer.text)} символов)"
                 )
+                # Записываем краткое резюме ответа в саммари-лог
+                try:
+                    self.pipeline_logger.log_answer_summary(answer.text, total_found=len(items))
+                except Exception:
+                    # Не прерываем пайплайн из-за проблем с логированием саммари
+                    pass
                 
             except Exception as e:
                 self.pipeline_logger.log_step_error(8, "Генерация ответа", str(e))
